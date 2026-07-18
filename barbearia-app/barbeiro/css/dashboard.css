@@ -1,0 +1,158 @@
+.tela-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.caixa-login {
+  background: var(--cor-superficie);
+  border-top: 4px solid var(--cor-latao);
+  border-radius: var(--raio);
+  padding: 2.5rem;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+}
+
+.logo-login {
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  font-size: 1.6rem;
+}
+.logo-login span { color: var(--cor-latao); }
+
+.caixa-login form { display: flex; flex-direction: column; gap: 0.4rem; text-align: left; }
+.caixa-login label { font-size: 0.8rem; color: var(--cor-texto-suave); margin-top: 0.5rem; }
+
+/* Barra superior do dashboard */
+.barra-superior {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--cor-superficie-alta);
+}
+
+.barra-superior h1 {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  margin: 0;
+}
+.barra-superior h1 span { color: var(--cor-latao); }
+
+.botao-secundario {
+  background: transparent;
+  border: 1px solid var(--cor-superficie-alta);
+  color: var(--cor-texto-suave);
+  padding: 0.5rem 1rem;
+  border-radius: var(--raio);
+  cursor: pointer;
+  font-family: inherit;
+}
+.botao-secundario:hover { color: var(--cor-texto); border-color: var(--cor-latao); }
+
+.abas {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem 0;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.aba-botao {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--cor-texto-suave);
+  padding: 0.6rem 0.2rem;
+  cursor: pointer;
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  margin-right: 1.5rem;
+}
+.aba-botao.ativa { color: var(--cor-latao); border-bottom-color: var(--cor-latao); }
+
+.painel-conteudo {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.painel-secao { display: none; }
+.painel-secao.ativa { display: block; }
+
+/* Grade do dashboard: slots clicáveis com mais informação que a do cliente */
+.slot-dash {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.5rem;
+  margin-bottom: 0.4rem;
+  border-radius: var(--raio);
+  border: 1px solid var(--cor-superficie-alta);
+  background: var(--cor-superficie-alta);
+  color: var(--cor-texto);
+  font-family: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.slot-dash.disponivel { border-left: 3px solid var(--cor-verde-disponivel); }
+.slot-dash.bloqueado { border-left: 3px solid var(--cor-texto-suave); opacity: 0.7; }
+.slot-dash.reservado { border-left: 3px solid var(--cor-latao); }
+
+.slot-dash .cliente-nome { display: block; font-weight: 600; font-size: 0.78rem; }
+.slot-dash .cliente-tel { display: block; color: var(--cor-texto-suave); font-size: 0.72rem; }
+
+/* Formulário de gerar grade de horários */
+.form-grade {
+  background: var(--cor-superficie);
+  border-radius: var(--raio);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.form-grade .campo-largo { grid-column: 1 / -1; }
+
+.checkboxes-dias {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.checkboxes-dias label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--cor-superficie-alta);
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--raio);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.painel-acoes {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.painel-acoes button {
+  flex: 1;
+  min-width: 100px;
+  font-size: 0.8rem;
+  padding: 0.5rem;
+}
+
+.mensagem-ok {
+  color: var(--cor-verde-disponivel);
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+}

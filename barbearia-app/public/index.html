@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reservar horário</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="topo">
+    <h1>Studio<span>Barber</span></h1>
+    <p class="subtitulo">Escolha um horário e reserve o seu corte.</p>
+  </header>
+
+  <main class="conteudo">
+    <div class="controles">
+      <div class="campo">
+        <label for="barbeiro">Barbeiro</label>
+        <select id="barbeiro"></select>
+      </div>
+      <div class="navegacao-semana">
+        <button id="semana-anterior" class="botao-icone" aria-label="Semana anterior">‹</button>
+        <span id="rotulo-semana">Carregando...</span>
+        <button id="semana-proxima" class="botao-icone" aria-label="Próxima semana">›</button>
+      </div>
+    </div>
+
+    <div id="grade-semana" class="grade-semana">
+      <!-- Preenchido via JavaScript -->
+    </div>
+  </main>
+
+  <!-- Modal de confirmação de reserva -->
+  <div id="modal" class="modal-fundo escondido">
+    <div class="modal-caixa">
+      <button id="fechar-modal" class="botao-fechar" aria-label="Fechar">×</button>
+      <h2>Confirmar reserva</h2>
+      <p id="modal-horario-info" class="modal-info"></p>
+
+      <form id="form-reserva">
+        <label for="nome">Seu nome</label>
+        <input type="text" id="nome" required placeholder="Ex: João Silva">
+
+        <label for="telefone">Seu telefone (WhatsApp)</label>
+        <input type="tel" id="telefone" required placeholder="Ex: (11) 91234-5678">
+
+        <button type="submit" class="botao-primario">Confirmar horário</button>
+        <p id="mensagem-erro" class="mensagem-erro escondido"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tela de sucesso -->
+  <div id="modal-sucesso" class="modal-fundo escondido">
+    <div class="modal-caixa modal-sucesso-caixa">
+      <div class="icone-sucesso">✓</div>
+      <h2>Reserva confirmada!</h2>
+      <p id="sucesso-info" class="modal-info"></p>
+      <button id="fechar-sucesso" class="botao-primario">Fechar</button>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

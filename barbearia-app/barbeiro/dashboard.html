@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel do barbeiro</title>
+<link rel="stylesheet" href="../public/css/style.css">
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+
+  <div class="barra-superior">
+    <h1>Studio<span>Barber</span> · <span id="nome-barbeiro-topo"></span></h1>
+    <button id="botao-sair" class="botao-secundario">Sair</button>
+  </div>
+
+  <nav class="abas">
+    <button class="aba-botao ativa" data-aba="agenda">Agenda</button>
+    <button class="aba-botao" data-aba="gerar">Gerar horários</button>
+  </nav>
+
+  <div class="painel-conteudo">
+
+    <!-- ABA: Agenda da semana -->
+    <section id="secao-agenda" class="painel-secao ativa">
+      <div class="controles">
+        <div class="navegacao-semana">
+          <button id="semana-anterior" class="botao-icone" aria-label="Semana anterior">‹</button>
+          <span id="rotulo-semana">Carregando...</span>
+          <button id="semana-proxima" class="botao-icone" aria-label="Próxima semana">›</button>
+        </div>
+      </div>
+      <p class="subtitulo" style="text-align:left; margin-bottom: 1rem;">
+        Verde = disponível · Dourado = reservado · Cinza = bloqueado. Clique num horário pra ver as opções.
+      </p>
+      <div id="grade-agenda" class="grade-semana"></div>
+    </section>
+
+    <!-- ABA: Gerar horários -->
+    <section id="secao-gerar" class="painel-secao">
+      <h2 style="font-family:'Oswald',sans-serif; font-weight:500;">Criar horários de atendimento</h2>
+      <p class="subtitulo" style="text-align:left; margin-bottom:1.5rem;">
+        Isso cria os horários disponíveis pros clientes reservarem. Rode isso sempre que quiser abrir uma nova semana ou período.
+      </p>
+      <form id="form-gerar" class="form-grade">
+        <div class="campo">
+          <label for="data-inicio-gerar">A partir de</label>
+          <input type="date" id="data-inicio-gerar" required>
+        </div>
+        <div class="campo">
+          <label for="hora-inicio-gerar">Hora de início</label>
+          <input type="time" id="hora-inicio-gerar" value="09:00" required>
+        </div>
+        <div class="campo">
+          <label for="hora-fim-gerar">Hora de fim</label>
+          <input type="time" id="hora-fim-gerar" value="19:00" required>
+        </div>
+        <div class="campo">
+          <label for="duracao-gerar">Duração de cada corte (min)</label>
+          <input type="number" id="duracao-gerar" value="30" min="5" step="5" required>
+        </div>
+        <div class="campo campo-largo">
+          <label>Dias da semana</label>
+          <div class="checkboxes-dias">
+            <label><input type="checkbox" value="1" checked> Seg</label>
+            <label><input type="checkbox" value="2" checked> Ter</label>
+            <label><input type="checkbox" value="3" checked> Qua</label>
+            <label><input type="checkbox" value="4" checked> Qui</label>
+            <label><input type="checkbox" value="5" checked> Sex</label>
+            <label><input type="checkbox" value="6" checked> Sáb</label>
+            <label><input type="checkbox" value="0"> Dom</label>
+          </div>
+        </div>
+        <div class="campo campo-largo">
+          <button type="submit" class="botao-primario" style="margin-top:0;">Gerar horários</button>
+          <p id="mensagem-gerar" class="mensagem-erro escondido"></p>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- Modal de ação sobre um horário -->
+  <div id="modal-acao" class="modal-fundo escondido">
+    <div class="modal-caixa">
+      <button id="fechar-modal-acao" class="botao-fechar" aria-label="Fechar">×</button>
+      <h2 id="acao-titulo">Horário</h2>
+      <p id="acao-info" class="modal-info"></p>
+
+      <div id="acao-disponivel" class="painel-acoes escondido">
+        <button class="botao-primario" id="btn-bloquear">Bloquear (folga)</button>
+      </div>
+
+      <div id="acao-bloqueado" class="painel-acoes escondido">
+        <button class="botao-primario" id="btn-desbloquear">Desbloquear</button>
+      </div>
+
+      <div id="acao-reservado" class="escondido">
+        <p><strong id="reservado-nome"></strong><br><span id="reservado-tel"></span></p>
+        <div class="painel-acoes">
+          <button class="botao-secundario" id="btn-cancelar">Cancelar reserva</button>
+          <button class="botao-primario" id="btn-mover">Trocar horário</button>
+        </div>
+        <div id="area-mover" class="escondido" style="margin-top:1rem;">
+          <label for="select-novo-horario">Novo horário disponível</label>
+          <select id="select-novo-horario"></select>
+          <button class="botao-primario" id="btn-confirmar-mover" style="margin-top:0.75rem;">Confirmar troca</button>
+        </div>
+      </div>
+
+      <p id="mensagem-acao" class="mensagem-erro escondido"></p>
+    </div>
+  </div>
+
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

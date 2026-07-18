@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login do barbeiro</title>
+<link rel="stylesheet" href="../public/css/style.css">
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+  <div class="tela-login">
+    <div class="caixa-login">
+      <h1 class="logo-login">Studio<span>Barber</span></h1>
+      <p class="subtitulo" style="margin-bottom: 1.5rem;">Painel do barbeiro</p>
+
+      <form id="form-login">
+        <label for="email">Email</label>
+        <input type="email" id="email" required>
+
+        <label for="senha">Senha</label>
+        <input type="password" id="senha" required>
+
+        <button type="submit" class="botao-primario">Entrar</button>
+        <p id="erro-login" class="mensagem-erro escondido"></p>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Se já tiver token salvo, vai direto pro dashboard
+    if (localStorage.getItem('token')) {
+      window.location.href = 'dashboard.html';
+    }
+
+    document.getElementById('form-login').addEventListener('submit', async (evento) => {
+      evento.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const senha = document.getElementById('senha').value;
+      const erro = document.getElementById('erro-login');
+
+      try {
+        const resposta = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, senha }),
+        });
+        const dados = await resposta.json();
+
+        if (!resposta.ok) {
+          erro.textContent = dados.erro || 'Não foi possível entrar.';
+          erro.classList.remove('escondido');
+          return;
+        }
+
+        localStorage.setItem('token', dados.token);
+        localStorage.setItem('nomeBarbeiro', dados.nome);
+        window.location.href = 'dashboard.html';
+      } catch (e) {
+        erro.textContent = 'Erro de conexão. Tente novamente.';
+        erro.classList.remove('escondido');
+      }
+    });
+  </script>
+</body>
+</html>
