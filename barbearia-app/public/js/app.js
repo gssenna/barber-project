@@ -1,39 +1,23 @@
-// URL base da API. Como o front e o back rodam juntos (mesmo servidor Express),
-// pode usar caminho relativo.
 const API = '/api';
-
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 let barbeiroSelecionado = null;
 let inicioSemana = obterInicioDaSemana(new Date());
-let horarioEscolhidoId = null;
+let horarioEscolhido = null; // { data, hora_inicio }
 
-// ===== Funções de data =====
 function obterInicioDaSemana(data) {
   const d = new Date(data);
-  d.setDate(d.getDate() - d.getDay()); // volta até domingo
+  d.setDate(d.getDate() - d.getDay());
   d.setHours(0, 0, 0, 0);
   return d;
 }
+function formatarDataISO(data) { return data.toISOString().split('T')[0]; }
+function formatarDataBonita(data) { return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); }
+function ehHoje(data) { return data.toDateString() === new Date().toDateString(); }
+function formatarHora(horaCompleta) { return horaCompleta.slice(0, 5); }
+function mostrar(el) { el.classList.remove('escondido'); }
+function esconder(el) { el.classList.add('escondido'); }
 
-function formatarDataISO(data) {
-  return data.toISOString().split('T')[0];
-}
-
-function formatarDataBonita(data) {
-  return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-}
-
-function ehHoje(data) {
-  const hoje = new Date();
-  return data.toDateString() === hoje.toDateString();
-}
-
-function formatarHora(horaCompleta) {
-  return horaCompleta.slice(0, 5); // "14:30:00" -> "14:30"
-}
-
-// ===== Carregar barbeiros =====
 async function carregarBarbeiros() {
   const resposta = await fetch(`${API}/barbeiros`);
   const barbeiros = await resposta.json();
@@ -45,12 +29,10 @@ async function carregarBarbeiros() {
     barbeiroSelecionado = barbeiros[0].id;
     carregarSemana();
   } else {
-    document.getElementById('grade-semana').innerHTML =
-      '<p class="sem-horarios">Nenhum barbeiro cadastrado ainda.</p>';
+    document.getElementById('grade-semana').innerHTML = '<p class="sem-horarios">Nenhum barbeiro cadastrado ainda.</p>';
   }
 }
 
-// ===== Carregar e desenhar a semana =====
 async function carregarSemana() {
   const fimSemana = new Date(inicioSemana);
   fimSemana.setDate(fimSemana.getDate() + 6);
@@ -64,9 +46,8 @@ async function carregarSemana() {
     data_fim: formatarDataISO(fimSemana),
   });
 
-  const resposta = await fetch(`${API}/horarios?${params}`);
+  const resposta = await fetch(`${API}/disponibilidade?${params}`);
   const horarios = await resposta.json();
-
   desenharGrade(horarios);
 }
 
@@ -78,8 +59,7 @@ function desenharGrade(horarios) {
     const dia = new Date(inicioSemana);
     dia.setDate(dia.getDate() + i);
     const dataISO = formatarDataISO(dia);
-
-    const horariosDoDia = horarios.filter(h => h.data.startsWith(dataISO));
+    const horariosDoDia = horarios.filter(h => h.data === dataISO);
 
     const coluna = document.createElement('div');
     coluna.className = 'coluna-dia' + (ehHoje(dia) ? ' hoje' : '');
@@ -91,7 +71,7 @@ function desenharGrade(horarios) {
     if (horariosDoDia.length === 0) {
       const vazio = document.createElement('p');
       vazio.className = 'sem-horarios';
-      vazio.textContent = '—';
+      vazio.textContent = 'Fechado';
       coluna.appendChild(vazio);
     }
 
@@ -108,9 +88,8 @@ function desenharGrade(horarios) {
   }
 }
 
-// ===== Modal de reserva =====
 function abrirModalReserva(horario, dia) {
-  horarioEscolhidoId = horario.id;
+  horarioEscolhido = { data: horario.data, hora_inicio: horario.hora_inicio };
   document.getElementById('modal-horario-info').textContent =
     `${DIAS_SEMANA[dia.getDay()]}, ${formatarDataBonita(dia)} às ${formatarHora(horario.hora_inicio)}`;
   document.getElementById('form-reserva').reset();
@@ -118,13 +97,10 @@ function abrirModalReserva(horario, dia) {
   mostrar(document.getElementById('modal'));
 }
 
-function mostrar(el) { el.classList.remove('escondido'); }
-function esconder(el) { el.classList.add('escondido'); }
-
 document.getElementById('fechar-modal').addEventListener('click', () => esconder(document.getElementById('modal')));
 document.getElementById('fechar-sucesso').addEventListener('click', () => {
   esconder(document.getElementById('modal-sucesso'));
-  carregarSemana(); // recarrega pra já sumir o horário que acabou de ser reservado
+  carregarSemana();
 });
 
 document.getElementById('form-reserva').addEventListener('submit', async (evento) => {
@@ -137,7 +113,13 @@ document.getElementById('form-reserva').addEventListener('submit', async (evento
     const resposta = await fetch(`${API}/reservas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ horario_id: horarioEscolhidoId, nome, telefone }),
+      body: JSON.stringify({
+        barbeiro_id: barbeiroSelecionado,
+        data: horarioEscolhido.data,
+        hora_inicio: horarioEscolhido.hora_inicio,
+        nome,
+        telefone,
+      }),
     });
     const dados = await resposta.json();
 
@@ -148,8 +130,7 @@ document.getElementById('form-reserva').addEventListener('submit', async (evento
     }
 
     esconder(document.getElementById('modal'));
-    document.getElementById('sucesso-info').textContent =
-      `Você receberá a confirmação pelo telefone informado. Até breve, ${nome}!`;
+    document.getElementById('sucesso-info').textContent = `Você receberá a confirmação pelo telefone informado. Até breve, ${nome}!`;
     mostrar(document.getElementById('modal-sucesso'));
   } catch (erro) {
     caixaErro.textContent = 'Erro de conexão. Tente novamente.';
@@ -157,7 +138,6 @@ document.getElementById('form-reserva').addEventListener('submit', async (evento
   }
 });
 
-// ===== Navegação de semana =====
 document.getElementById('semana-anterior').addEventListener('click', () => {
   inicioSemana.setDate(inicioSemana.getDate() - 7);
   carregarSemana();

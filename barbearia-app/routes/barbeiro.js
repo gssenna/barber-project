@@ -2,205 +2,139 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/db');
 const verificarLogin = require('../middleware/auth');
+const { paraMinutos, paraHoraTexto } = require('../utils/grade');
 
-// Todas as rotas abaixo exigem login (o middleware roda antes de cada uma)
-router.use(verificarLogin);
+router.use(verificarLogin); // todas as rotas daqui pra baixo exigem login
 
-// GET /api/barbeiro/horarios?data_inicio=...&data_fim=...
-// Igual à rota pública, mas já filtra pelo barbeiro logado e traz dados da reserva (nome/telefone)
-router.get('/horarios', async (req, res) => {
+// ===== Configuração do expediente =====
+
+// GET /api/barbeiro/configuracao
+router.get('/configuracao', async (req, res) => {
+  try {
+    const [[config]] = await db.query('SELECT * FROM configuracoes WHERE barbeiro_id = ?', [req.barbeiroId]);
+    res.json(config || null);
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: 'Erro ao buscar configuração.' });
+  }
+});
+
+// PUT /api/barbeiro/configuracao
+// Body: { dias_semana: [1,2,3,4,5,6], hora_abertura: "09:00", hora_fechamento: "19:00", duracao_minutos: 60 }
+router.put('/configuracao', async (req, res) => {
+  const { dias_semana, hora_abertura, hora_fechamento, duracao_minutos } = req.body;
+  if (!dias_semana || !hora_abertura || !hora_fechamento || !duracao_minutos) {
+    return res.status(400).json({ erro: 'Preencha todos os campos do expediente.' });
+  }
+  try {
+    await db.query(
+      `INSERT INTO configuracoes (barbeiro_id, dias_semana, hora_abertura, hora_fechamento, duracao_minutos)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE dias_semana=?, hora_abertura=?, hora_fechamento=?, duracao_minutos=?`,
+      [req.barbeiroId, dias_semana.join(','), hora_abertura, hora_fechamento, duracao_minutos,
+       dias_semana.join(','), hora_abertura, hora_fechamento, duracao_minutos]
+    );
+    res.json({ mensagem: 'Expediente atualizado.' });
+  } catch (erro) {
+    console.error(erro);
+    res.status(500).json({ erro: 'Erro ao salvar configuração.' });
+  }
+});
+
+// ===== Agendamentos (eventos do calendário) =====
+
+// GET /api/barbeiro/agendamentos?data_inicio=...&data_fim=...
+// Devolve só os eventos reais (reservas e bloqueios) — horários livres não têm linha,
+// então não precisam ser listados aqui (o calendário já sabe o que é expediente).
+router.get('/agendamentos', async (req, res) => {
   const { data_inicio, data_fim } = req.query;
   try {
-    const [horarios] = await db.query(
-      `SELECT h.id, h.data, h.hora_inicio, h.hora_fim, h.status,
-              r.id AS reserva_id, r.nome_cliente, r.telefone_cliente
-       FROM horarios h
-       LEFT JOIN reservas r ON r.horario_id = h.id
-       WHERE h.barbeiro_id = ? AND h.data BETWEEN ? AND ?
-       ORDER BY h.data, h.hora_inicio`,
+    const [agendamentos] = await db.query(
+      `SELECT * FROM agendamentos WHERE barbeiro_id = ? AND data BETWEEN ? AND ? ORDER BY data, hora_inicio`,
       [req.barbeiroId, data_inicio, data_fim]
     );
-    res.json(horarios);
+    res.json(agendamentos);
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: 'Erro ao buscar horários.' });
+    res.status(500).json({ erro: 'Erro ao buscar agendamentos.' });
   }
 });
 
-// POST /api/barbeiro/horarios/gerar
-// Cria os horários da semana de uma vez, com base numa "grade" simples.
-// Body: { data_inicio, dias: [0,1,2,3,4,5] (0=domingo...6=sábado), hora_inicio: "09:00", hora_fim: "19:00", duracao_minutos: 30 }
-router.post('/horarios/gerar', async (req, res) => {
-  const { data_inicio, dias, hora_inicio, hora_fim, duracao_minutos } = req.body;
+// POST /api/barbeiro/agendamentos
+// O barbeiro cria um bloqueio OU já cria uma reserva direto (cliente que ligou, por ex.)
+// Body: { data, hora_inicio, tipo: "bloqueado"|"reservado", nome_cliente?, telefone_cliente? }
+router.post('/agendamentos', async (req, res) => {
+  const { data, hora_inicio, tipo, nome_cliente, telefone_cliente } = req.body;
 
-  if (!data_inicio || !dias || !hora_inicio || !hora_fim || !duracao_minutos) {
-    return res.status(400).json({ erro: 'Preencha todos os campos da grade de horários.' });
+  if (!data || !hora_inicio || !tipo) {
+    return res.status(400).json({ erro: 'Informe data, horário e o tipo (bloquear ou reservar).' });
+  }
+  if (tipo === 'reservado' && (!nome_cliente || !telefone_cliente)) {
+    return res.status(400).json({ erro: 'Pra reservar, informe nome e telefone do cliente.' });
   }
 
   try {
-    const inicioSemana = new Date(data_inicio + 'T00:00:00');
-    const linhasParaInserir = [];
+    const [[config]] = await db.query('SELECT * FROM configuracoes WHERE barbeiro_id = ?', [req.barbeiroId]);
+    const horaFim = paraHoraTexto(paraMinutos(hora_inicio) + config.duracao_minutos);
 
-    // Percorre 7 dias a partir da data_inicio, e só gera horário nos dias marcados
-    for (let i = 0; i < 7; i++) {
-      const dia = new Date(inicioSemana);
-      dia.setDate(dia.getDate() + i);
-      const diaDaSemana = dia.getDay(); // 0-6
-
-      if (!dias.includes(diaDaSemana)) continue;
-
-      const dataFormatada = dia.toISOString().split('T')[0];
-
-      // Gera os blocos de horário dentro do intervalo (ex: 09:00, 09:30, 10:00...)
-      let [h, m] = hora_inicio.split(':').map(Number);
-      const [hFim, mFim] = hora_fim.split(':').map(Number);
-
-      while (h < hFim || (h === hFim && m < mFim)) {
-        const horaInicioBloco = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-        m += duracao_minutos;
-        while (m >= 60) { m -= 60; h += 1; }
-        const horaFimBloco = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-
-        linhasParaInserir.push([req.barbeiroId, dataFormatada, horaInicioBloco, horaFimBloco]);
-      }
-    }
-
-    if (linhasParaInserir.length === 0) {
-      return res.status(400).json({ erro: 'Nenhum horário foi gerado. Confira os dias e horários.' });
-    }
-
-    // INSERT IGNORE evita erro se um horário já existir (por causa do UNIQUE KEY no schema)
     await db.query(
-      'INSERT IGNORE INTO horarios (barbeiro_id, data, hora_inicio, hora_fim) VALUES ?',
-      [linhasParaInserir]
+      `INSERT INTO agendamentos (barbeiro_id, data, hora_inicio, hora_fim, tipo, nome_cliente, telefone_cliente)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [req.barbeiroId, data, hora_inicio, horaFim, tipo, nome_cliente || null, telefone_cliente || null]
     );
-
-    res.status(201).json({ mensagem: `${linhasParaInserir.length} horários gerados com sucesso.` });
+    res.status(201).json({ mensagem: 'Horário atualizado no calendário.' });
   } catch (erro) {
+    if (erro.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ erro: 'Já existe algo marcado nesse horário.' });
+    }
     console.error(erro);
-    res.status(500).json({ erro: 'Erro ao gerar horários.' });
+    res.status(500).json({ erro: 'Erro ao salvar no calendário.' });
   }
 });
 
-// PUT /api/barbeiro/horarios/:id/bloquear
-router.put('/horarios/:id/bloquear', async (req, res) => {
-  await mudarStatus(req, res, 'bloqueado', ['disponivel']);
+// PUT /api/barbeiro/agendamentos/:id
+// Usado tanto pra EDITAR dados quanto pra MOVER (arrastar no calendário) um agendamento.
+// Body: { data, hora_inicio }
+router.put('/agendamentos/:id', async (req, res) => {
+  const { id } = req.params;
+  const { data, hora_inicio } = req.body;
+
+  if (!data || !hora_inicio) {
+    return res.status(400).json({ erro: 'Informe a nova data e horário.' });
+  }
+
+  try {
+    const [[agendamento]] = await db.query(
+      'SELECT * FROM agendamentos WHERE id = ? AND barbeiro_id = ?', [id, req.barbeiroId]
+    );
+    if (!agendamento) return res.status(404).json({ erro: 'Agendamento não encontrado.' });
+
+    const [[config]] = await db.query('SELECT * FROM configuracoes WHERE barbeiro_id = ?', [req.barbeiroId]);
+    const horaFim = paraHoraTexto(paraMinutos(hora_inicio) + config.duracao_minutos);
+
+    await db.query('UPDATE agendamentos SET data = ?, hora_inicio = ?, hora_fim = ? WHERE id = ?', [data, hora_inicio, horaFim, id]);
+    res.json({ mensagem: 'Movido com sucesso.' });
+  } catch (erro) {
+    if (erro.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ erro: 'Já existe algo marcado nesse novo horário.' });
+    }
+    console.error(erro);
+    res.status(500).json({ erro: 'Erro ao mover.' });
+  }
 });
 
-// PUT /api/barbeiro/horarios/:id/desbloquear
-router.put('/horarios/:id/desbloquear', async (req, res) => {
-  await mudarStatus(req, res, 'disponivel', ['bloqueado']);
-});
-
-// Função auxiliar: só troca o status se o horário for do barbeiro logado
-// e estiver num dos status permitidos (evita, por ex, bloquear um horário já reservado sem cancelar antes)
-async function mudarStatus(req, res, novoStatus, statusPermitidos) {
+// DELETE /api/barbeiro/agendamentos/:id
+// Serve tanto pra CANCELAR uma reserva quanto pra DESBLOQUEAR um horário —
+// nos dois casos, o resultado é o mesmo: o horário volta a ficar livre.
+router.delete('/agendamentos/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const [linhas] = await db.query(
-      'SELECT status FROM horarios WHERE id = ? AND barbeiro_id = ?',
-      [id, req.barbeiroId]
-    );
-    if (linhas.length === 0) {
-      return res.status(404).json({ erro: 'Horário não encontrado.' });
-    }
-    if (!statusPermitidos.includes(linhas[0].status)) {
-      return res.status(409).json({ erro: `Não é possível fazer essa ação com o horário no status "${linhas[0].status}".` });
-    }
-    await db.query('UPDATE horarios SET status = ? WHERE id = ?', [novoStatus, id]);
-    res.json({ mensagem: 'Horário atualizado.' });
+    const [resultado] = await db.query('DELETE FROM agendamentos WHERE id = ? AND barbeiro_id = ?', [id, req.barbeiroId]);
+    if (resultado.affectedRows === 0) return res.status(404).json({ erro: 'Agendamento não encontrado.' });
+    res.json({ mensagem: 'Removido. O horário está livre novamente.' });
   } catch (erro) {
     console.error(erro);
-    res.status(500).json({ erro: 'Erro ao atualizar horário.' });
-  }
-}
-
-// DELETE /api/barbeiro/reservas/:id
-// Cancela a reserva e devolve o horário pra "disponivel"
-router.delete('/reservas/:id', async (req, res) => {
-  const { id } = req.params;
-  const conexao = await db.getConnection();
-  try {
-    await conexao.beginTransaction();
-
-    const [linhas] = await conexao.query(
-      `SELECT r.id, h.id AS horario_id FROM reservas r
-       JOIN horarios h ON h.id = r.horario_id
-       WHERE r.id = ? AND h.barbeiro_id = ?`,
-      [id, req.barbeiroId]
-    );
-
-    if (linhas.length === 0) {
-      await conexao.rollback();
-      return res.status(404).json({ erro: 'Reserva não encontrada.' });
-    }
-
-    await conexao.query('DELETE FROM reservas WHERE id = ?', [id]);
-    await conexao.query('UPDATE horarios SET status = "disponivel" WHERE id = ?', [linhas[0].horario_id]);
-
-    await conexao.commit();
-    res.json({ mensagem: 'Reserva cancelada.' });
-  } catch (erro) {
-    await conexao.rollback();
-    console.error(erro);
-    res.status(500).json({ erro: 'Erro ao cancelar reserva.' });
-  } finally {
-    conexao.release();
-  }
-});
-
-// PUT /api/barbeiro/reservas/:id/mover
-// Move uma reserva existente para outro horário (que precisa estar livre)
-// Body: { novo_horario_id }
-router.put('/reservas/:id/mover', async (req, res) => {
-  const { id } = req.params;
-  const { novo_horario_id } = req.body;
-
-  if (!novo_horario_id) {
-    return res.status(400).json({ erro: 'Informe o novo horário.' });
-  }
-
-  const conexao = await db.getConnection();
-  try {
-    await conexao.beginTransaction();
-
-    const [reservaAtual] = await conexao.query(
-      `SELECT r.id, h.id AS horario_antigo_id FROM reservas r
-       JOIN horarios h ON h.id = r.horario_id
-       WHERE r.id = ? AND h.barbeiro_id = ?`,
-      [id, req.barbeiroId]
-    );
-    if (reservaAtual.length === 0) {
-      await conexao.rollback();
-      return res.status(404).json({ erro: 'Reserva não encontrada.' });
-    }
-
-    const [novoHorario] = await conexao.query(
-      'SELECT status FROM horarios WHERE id = ? AND barbeiro_id = ? FOR UPDATE',
-      [novo_horario_id, req.barbeiroId]
-    );
-    if (novoHorario.length === 0) {
-      await conexao.rollback();
-      return res.status(404).json({ erro: 'Novo horário não encontrado.' });
-    }
-    if (novoHorario[0].status !== 'disponivel') {
-      await conexao.rollback();
-      return res.status(409).json({ erro: 'O novo horário não está disponível.' });
-    }
-
-    // Libera o horário antigo, ocupa o novo, e atualiza a reserva
-    await conexao.query('UPDATE horarios SET status = "disponivel" WHERE id = ?', [reservaAtual[0].horario_antigo_id]);
-    await conexao.query('UPDATE horarios SET status = "reservado" WHERE id = ?', [novo_horario_id]);
-    await conexao.query('UPDATE reservas SET horario_id = ? WHERE id = ?', [novo_horario_id, id]);
-
-    await conexao.commit();
-    res.json({ mensagem: 'Reserva movida com sucesso.' });
-  } catch (erro) {
-    await conexao.rollback();
-    console.error(erro);
-    res.status(500).json({ erro: 'Erro ao mover reserva.' });
-  } finally {
-    conexao.release();
+    res.status(500).json({ erro: 'Erro ao remover.' });
   }
 });
 

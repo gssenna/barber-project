@@ -1,23 +1,20 @@
 const API = '/api';
-const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
 const token = localStorage.getItem('token');
 
-// Se não tiver token e estiver no dashboard, manda pro login
 if (!token && window.location.pathname.includes('dashboard')) {
   window.location.href = 'login.html';
 }
 
-let inicioSemana = obterInicioDaSemana(new Date());
-let horarioSelecionado = null; // guarda o horário clicado no modal de ação
-let cacheHorariosSemana = []; // guarda os horários já buscados, pra usar na troca de reserva
+let config = null;       // configuração de expediente do barbeiro
+let calendario = null;   // instância do FullCalendar
+let dataClicada = null;  // guarda a data/hora clicada nos modais
+let tipoSelecionado = 'bloqueado';
+let eventoSelecionadoId = null;
 
-// ===== Cabeçalho de autenticação usado em toda chamada protegida =====
 function cabecalhosAuth() {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
-// Se a API responder 401 (sessão expirada/inválida), manda de volta pro login
 async function chamarApiProtegida(url, opcoes = {}) {
   const resposta = await fetch(url, { ...opcoes, headers: cabecalhosAuth() });
   if (resposta.status === 401) {
@@ -28,47 +25,22 @@ async function chamarApiProtegida(url, opcoes = {}) {
   return resposta;
 }
 
-// ===== Funções de data (iguais às do site do cliente) =====
-function obterInicioDaSemana(data) {
-  const d = new Date(data);
-  d.setDate(d.getDate() - d.getDay());
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-function formatarDataISO(data) { return data.toISOString().split('T')[0]; }
-function formatarDataBonita(data) { return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); }
-function ehHoje(data) { return data.toDateString() === new Date().toDateString(); }
-function formatarHora(horaCompleta) { return horaCompleta.slice(0, 5); }
 function mostrar(el) { el.classList.remove('escondido'); }
 function esconder(el) { el.classList.add('escondido'); }
 
-// ===== Inicialização =====
-document.addEventListener('DOMContentLoaded', () => {
-  if (!token) return; // estamos na tela de login, não faz nada daqui
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!token) return;
 
   document.getElementById('nome-barbeiro-topo').textContent = localStorage.getItem('nomeBarbeiro') || '';
-  document.getElementById('data-inicio-gerar').value = formatarDataISO(new Date());
-
-  configurarAbas();
-  configurarNavegacaoSemana();
-  configurarModalAcao();
-  configurarFormularioGerar();
   configurarBotaoSair();
+  configurarFechamentoModais();
+  configurarModalNovo();
+  configurarModalEvento();
+  configurarModalConfig();
 
-  carregarSemana();
+  await carregarConfiguracao();
+  iniciarCalendario();
 });
-
-// ===== Abas =====
-function configurarAbas() {
-  document.querySelectorAll('.aba-botao').forEach(botao => {
-    botao.addEventListener('click', () => {
-      document.querySelectorAll('.aba-botao').forEach(b => b.classList.remove('ativa'));
-      document.querySelectorAll('.painel-secao').forEach(s => s.classList.remove('ativa'));
-      botao.classList.add('ativa');
-      document.getElementById(`secao-${botao.dataset.aba}`).classList.add('ativa');
-    });
-  });
-}
 
 function configurarBotaoSair() {
   document.getElementById('botao-sair').addEventListener('click', () => {
@@ -78,193 +50,274 @@ function configurarBotaoSair() {
   });
 }
 
-// ===== Navegação de semana =====
-function configurarNavegacaoSemana() {
-  document.getElementById('semana-anterior').addEventListener('click', () => {
-    inicioSemana.setDate(inicioSemana.getDate() - 7);
-    carregarSemana();
-  });
-  document.getElementById('semana-proxima').addEventListener('click', () => {
-    inicioSemana.setDate(inicioSemana.getDate() + 7);
-    carregarSemana();
+function configurarFechamentoModais() {
+  document.querySelectorAll('[data-fechar]').forEach(botao => {
+    botao.addEventListener('click', () => esconder(document.getElementById(botao.dataset.fechar)));
   });
 }
 
-// ===== Carregar e desenhar a agenda da semana =====
-async function carregarSemana() {
-  const fimSemana = new Date(inicioSemana);
-  fimSemana.setDate(fimSemana.getDate() + 6);
-
-  document.getElementById('rotulo-semana').textContent =
-    `${formatarDataBonita(inicioSemana)} – ${formatarDataBonita(fimSemana)}`;
-
-  const params = new URLSearchParams({
-    data_inicio: formatarDataISO(inicioSemana),
-    data_fim: formatarDataISO(fimSemana),
-  });
-
-  const resposta = await chamarApiProtegida(`${API}/barbeiro/horarios?${params}`);
-  const horarios = await resposta.json();
-  cacheHorariosSemana = horarios;
-
-  desenharGrade(horarios);
+// ===== Configuração de expediente =====
+async function carregarConfiguracao() {
+  const resposta = await chamarApiProtegida(`${API}/barbeiro/configuracao`);
+  config = await resposta.json();
 }
 
-function desenharGrade(horarios) {
-  const grade = document.getElementById('grade-agenda');
-  grade.innerHTML = '';
-
-  for (let i = 0; i < 7; i++) {
-    const dia = new Date(inicioSemana);
-    dia.setDate(dia.getDate() + i);
-    const dataISO = formatarDataISO(dia);
-    const horariosDoDia = horarios.filter(h => h.data.startsWith(dataISO));
-
-    const coluna = document.createElement('div');
-    coluna.className = 'coluna-dia' + (ehHoje(dia) ? ' hoje' : '');
-
-    const titulo = document.createElement('h3');
-    titulo.textContent = `${DIAS_SEMANA[dia.getDay()]} ${formatarDataBonita(dia)}`;
-    coluna.appendChild(titulo);
-
-    if (horariosDoDia.length === 0) {
-      const vazio = document.createElement('p');
-      vazio.className = 'sem-horarios';
-      vazio.textContent = 'Sem horários';
-      coluna.appendChild(vazio);
-    }
-
-    horariosDoDia.forEach(h => {
-      const botao = document.createElement('button');
-      botao.className = `slot-dash ${h.status}`;
-      if (h.status === 'reservado') {
-        botao.innerHTML = `${formatarHora(h.hora_inicio)}
-          <span class="cliente-nome">${h.nome_cliente}</span>
-          <span class="cliente-tel">${h.telefone_cliente}</span>`;
-      } else {
-        botao.textContent = `${formatarHora(h.hora_inicio)} · ${h.status === 'disponivel' ? 'Livre' : 'Bloqueado'}`;
-      }
-      botao.addEventListener('click', () => abrirModalAcao(h, dia));
-      coluna.appendChild(botao);
+function configurarModalConfig() {
+  document.getElementById('botao-config').addEventListener('click', () => {
+    document.getElementById('config-hora-abertura').value = config.hora_abertura.slice(0, 5);
+    document.getElementById('config-hora-fechamento').value = config.hora_fechamento.slice(0, 5);
+    document.getElementById('config-duracao').value = config.duracao_minutos;
+    const diasAtivos = config.dias_semana.split(',');
+    document.querySelectorAll('#config-dias input').forEach(cb => {
+      cb.checked = diasAtivos.includes(cb.value);
     });
-
-    grade.appendChild(coluna);
-  }
-}
-
-// ===== Modal de ação (bloquear / desbloquear / cancelar / mover) =====
-function configurarModalAcao() {
-  document.getElementById('fechar-modal-acao').addEventListener('click', () => esconder(document.getElementById('modal-acao')));
-
-  document.getElementById('btn-bloquear').addEventListener('click', () => executarAcao(
-    () => chamarApiProtegida(`${API}/barbeiro/horarios/${horarioSelecionado.id}/bloquear`, { method: 'PUT' })
-  ));
-
-  document.getElementById('btn-desbloquear').addEventListener('click', () => executarAcao(
-    () => chamarApiProtegida(`${API}/barbeiro/horarios/${horarioSelecionado.id}/desbloquear`, { method: 'PUT' })
-  ));
-
-  document.getElementById('btn-cancelar').addEventListener('click', () => {
-    if (!confirm('Tem certeza que quer cancelar essa reserva?')) return;
-    executarAcao(() => chamarApiProtegida(`${API}/barbeiro/reservas/${horarioSelecionado.reserva_id}`, { method: 'DELETE' }));
+    esconder(document.getElementById('config-mensagem'));
+    mostrar(document.getElementById('modal-config'));
   });
 
-  document.getElementById('btn-mover').addEventListener('click', () => {
-    const select = document.getElementById('select-novo-horario');
-    const disponiveis = cacheHorariosSemana.filter(h => h.status === 'disponivel');
+  document.getElementById('form-config').addEventListener('submit', async (evento) => {
+    evento.preventDefault();
+    const mensagem = document.getElementById('config-mensagem');
+    const dias = Array.from(document.querySelectorAll('#config-dias input:checked')).map(c => Number(c.value));
 
-    if (disponiveis.length === 0) {
-      select.innerHTML = '<option>Nenhum horário livre nesta semana</option>';
-    } else {
-      select.innerHTML = disponiveis.map(h =>
-        `<option value="${h.id}">${h.data.split('T')[0].split('-').reverse().join('/')} às ${formatarHora(h.hora_inicio)}</option>`
-      ).join('');
-    }
-    mostrar(document.getElementById('area-mover'));
-  });
-
-  document.getElementById('btn-confirmar-mover').addEventListener('click', () => {
-    const novoHorarioId = document.getElementById('select-novo-horario').value;
-    executarAcao(() => chamarApiProtegida(`${API}/barbeiro/reservas/${horarioSelecionado.reserva_id}/mover`, {
-      method: 'PUT',
-      body: JSON.stringify({ novo_horario_id: novoHorarioId }),
-    }));
-  });
-}
-
-function abrirModalAcao(horario, dia) {
-  horarioSelecionado = horario;
-  const infoData = `${DIAS_SEMANA[dia.getDay()]}, ${formatarDataBonita(dia)} às ${formatarHora(horario.hora_inicio)}`;
-
-  document.getElementById('acao-titulo').textContent =
-    horario.status === 'disponivel' ? 'Horário livre' : horario.status === 'bloqueado' ? 'Horário bloqueado' : 'Horário reservado';
-  document.getElementById('acao-info').textContent = infoData;
-
-  [ 'acao-disponivel', 'acao-bloqueado', 'acao-reservado' ].forEach(id => esconder(document.getElementById(id)));
-  esconder(document.getElementById('area-mover'));
-  esconder(document.getElementById('mensagem-acao'));
-
-  if (horario.status === 'disponivel') mostrar(document.getElementById('acao-disponivel'));
-  if (horario.status === 'bloqueado') mostrar(document.getElementById('acao-bloqueado'));
-  if (horario.status === 'reservado') {
-    mostrar(document.getElementById('acao-reservado'));
-    document.getElementById('reservado-nome').textContent = horario.nome_cliente;
-    document.getElementById('reservado-tel').textContent = horario.telefone_cliente;
-  }
-
-  mostrar(document.getElementById('modal-acao'));
-}
-
-async function executarAcao(chamada) {
-  const mensagem = document.getElementById('mensagem-acao');
-  try {
-    const resposta = await chamada();
-    const dados = await resposta.json();
-    if (!resposta.ok) {
-      mensagem.textContent = dados.erro || 'Não foi possível concluir a ação.';
+    if (dias.length === 0) {
+      mensagem.className = 'mensagem-erro';
+      mensagem.textContent = 'Selecione ao menos um dia de atendimento.';
       mostrar(mensagem);
       return;
     }
-    esconder(document.getElementById('modal-acao'));
-    carregarSemana();
-  } catch (erro) {
-    mensagem.textContent = 'Erro de conexão. Tente novamente.';
-    mostrar(mensagem);
-  }
-}
-
-// ===== Formulário: gerar horários da semana =====
-function configurarFormularioGerar() {
-  document.getElementById('form-gerar').addEventListener('submit', async (evento) => {
-    evento.preventDefault();
-    const mensagem = document.getElementById('mensagem-gerar');
-
-    const dias = Array.from(document.querySelectorAll('.checkboxes-dias input:checked')).map(c => Number(c.value));
-
-    const corpo = {
-      data_inicio: document.getElementById('data-inicio-gerar').value,
-      hora_inicio: document.getElementById('hora-inicio-gerar').value,
-      hora_fim: document.getElementById('hora-fim-gerar').value,
-      duracao_minutos: Number(document.getElementById('duracao-gerar').value),
-      dias,
-    };
 
     try {
-      const resposta = await chamarApiProtegida(`${API}/barbeiro/horarios/gerar`, {
-        method: 'POST',
-        body: JSON.stringify(corpo),
+      const resposta = await chamarApiProtegida(`${API}/barbeiro/configuracao`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          dias_semana: dias,
+          hora_abertura: document.getElementById('config-hora-abertura').value,
+          hora_fechamento: document.getElementById('config-hora-fechamento').value,
+          duracao_minutos: Number(document.getElementById('config-duracao').value),
+        }),
       });
       const dados = await resposta.json();
-
       mensagem.className = resposta.ok ? 'mensagem-ok' : 'mensagem-erro';
       mensagem.textContent = dados.mensagem || dados.erro;
       mostrar(mensagem);
 
-      if (resposta.ok) carregarSemana();
+      if (resposta.ok) {
+        await carregarConfiguracao();
+        aplicarExpedienteNoCalendario();
+        calendario.refetchEvents();
+        setTimeout(() => esconder(document.getElementById('modal-config')), 800);
+      }
     } catch (erro) {
       mensagem.className = 'mensagem-erro';
-      mensagem.textContent = 'Erro de conexão. Tente novamente.';
+      mensagem.textContent = 'Erro de conexão.';
       mostrar(mensagem);
     }
   });
+}
+
+function aplicarExpedienteNoCalendario() {
+  calendario.setOption('businessHours', {
+    daysOfWeek: config.dias_semana.split(',').map(Number),
+    startTime: config.hora_abertura.slice(0, 5),
+    endTime: config.hora_fechamento.slice(0, 5),
+  });
+  calendario.setOption('slotDuration', `00:${String(config.duracao_minutos).padStart(2, '0')}:00`);
+}
+
+// ===== Calendário =====
+function iniciarCalendario() {
+  const elemento = document.getElementById('calendario');
+
+  calendario = new FullCalendar.Calendar(elemento, {
+    locale: 'pt-br',
+    height: 'auto',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'multiMonthYear,dayGridMonth,timeGridWeek,timeGridDay',
+    },
+    buttonText: { multiMonthYear: 'Ano', dayGridMonth: 'Mês', timeGridWeek: 'Semana', timeGridDay: 'Dia', today: 'Hoje' },
+    initialView: 'timeGridWeek',
+    slotMinTime: '07:00:00',
+    slotMaxTime: '22:00:00',
+    allDaySlot: false,
+    nowIndicator: true,
+    selectable: true,
+    selectMirror: true,
+    selectOverlap: false,
+    editable: true,        // permite arrastar eventos pra mover
+    eventDurationEditable: false, // não deixa esticar/encolher (duração é fixa)
+    eventStartEditable: true,
+
+    // Clique num dia inteiro (visão de mês/ano) -> abre a visão do dia
+    dateClick(info) {
+      if (info.view.type === 'dayGridMonth' || info.view.type === 'multiMonthYear') {
+        calendario.changeView('timeGridDay', info.date);
+      }
+    },
+
+    // Selecionou um intervalo de horário livre (visão semana/dia) -> abrir modal de criação
+    select(info) {
+      if (info.view.type !== 'timeGridWeek' && info.view.type !== 'timeGridDay') {
+        calendario.unselect();
+        return;
+      }
+      abrirModalNovo(info.start);
+      calendario.unselect();
+    },
+
+    // Busca os eventos (reservas e bloqueios) do período visível
+    events(info, sucesso, falha) {
+      const dataInicio = info.startStr.split('T')[0];
+      const dataFim = info.endStr.split('T')[0];
+      chamarApiProtegida(`${API}/barbeiro/agendamentos?data_inicio=${dataInicio}&data_fim=${dataFim}`)
+        .then(r => r.json())
+        .then(agendamentos => {
+          sucesso(agendamentos.map(a => ({
+            id: String(a.id),
+            title: a.tipo === 'reservado' ? a.nome_cliente : 'Bloqueado',
+            start: `${a.data.split('T')[0]}T${a.hora_inicio}`,
+            end: `${a.data.split('T')[0]}T${a.hora_fim}`,
+            classNames: [a.tipo === 'reservado' ? 'evento-reservado' : 'evento-bloqueado'],
+            extendedProps: { tipo: a.tipo, nome_cliente: a.nome_cliente, telefone_cliente: a.telefone_cliente },
+          })));
+        })
+        .catch(falha);
+    },
+
+    eventClick(info) {
+      abrirModalEvento(info.event);
+    },
+
+    // Arrastou um evento pra outro horário
+    async eventDrop(info) {
+      const ok = await moverEvento(info.event.id, info.event.start);
+      if (!ok) info.revert();
+    },
+  });
+
+  aplicarExpedienteNoCalendario();
+  calendario.render();
+}
+
+// ===== Modal: criar bloqueio ou reserva manual =====
+function configurarModalNovo() {
+  document.querySelectorAll('.aba-tipo').forEach(botao => {
+    botao.addEventListener('click', () => {
+      document.querySelectorAll('.aba-tipo').forEach(b => b.classList.remove('ativa'));
+      botao.classList.add('ativa');
+      tipoSelecionado = botao.dataset.tipo;
+      const campos = document.getElementById('campos-cliente');
+      tipoSelecionado === 'reservado' ? mostrar(campos) : esconder(campos);
+    });
+  });
+
+  document.getElementById('form-novo').addEventListener('submit', async (evento) => {
+    evento.preventDefault();
+    const erro = document.getElementById('novo-erro');
+    const nome = document.getElementById('novo-nome').value.trim();
+    const telefone = document.getElementById('novo-telefone').value.trim();
+
+    if (tipoSelecionado === 'reservado' && (!nome || !telefone)) {
+      erro.textContent = 'Preencha nome e telefone do cliente.';
+      mostrar(erro);
+      return;
+    }
+
+    const corpo = {
+      data: formatarDataISO(dataClicada),
+      hora_inicio: formatarHoraISO(dataClicada),
+      tipo: tipoSelecionado,
+      nome_cliente: tipoSelecionado === 'reservado' ? nome : undefined,
+      telefone_cliente: tipoSelecionado === 'reservado' ? telefone : undefined,
+    };
+
+    try {
+      const resposta = await chamarApiProtegida(`${API}/barbeiro/agendamentos`, { method: 'POST', body: JSON.stringify(corpo) });
+      const dados = await resposta.json();
+      if (!resposta.ok) { erro.textContent = dados.erro; mostrar(erro); return; }
+      esconder(document.getElementById('modal-novo'));
+      calendario.refetchEvents();
+    } catch (e) {
+      erro.textContent = 'Erro de conexão.';
+      mostrar(erro);
+    }
+  });
+}
+
+function abrirModalNovo(data) {
+  dataClicada = data;
+  document.getElementById('novo-info').textContent = formatarDataHoraBonita(data);
+  document.getElementById('form-novo').reset();
+  esconder(document.getElementById('novo-erro'));
+  esconder(document.getElementById('campos-cliente'));
+  tipoSelecionado = 'bloqueado';
+  document.querySelectorAll('.aba-tipo').forEach(b => b.classList.remove('ativa'));
+  document.querySelector('.aba-tipo[data-tipo="bloqueado"]').classList.add('ativa');
+  mostrar(document.getElementById('modal-novo'));
+}
+
+// ===== Modal: ver/remover evento existente =====
+function configurarModalEvento() {
+  document.getElementById('btn-remover-evento').addEventListener('click', async () => {
+    if (!confirm('Tem certeza que quer remover isso?')) return;
+    const erro = document.getElementById('evento-erro');
+    try {
+      const resposta = await chamarApiProtegida(`${API}/barbeiro/agendamentos/${eventoSelecionadoId}`, { method: 'DELETE' });
+      const dados = await resposta.json();
+      if (!resposta.ok) { erro.textContent = dados.erro; mostrar(erro); return; }
+      esconder(document.getElementById('modal-evento'));
+      calendario.refetchEvents();
+    } catch (e) {
+      erro.textContent = 'Erro de conexão.';
+      mostrar(erro);
+    }
+  });
+}
+
+function abrirModalEvento(evento) {
+  eventoSelecionadoId = evento.id;
+  const props = evento.extendedProps;
+
+  document.getElementById('evento-titulo').textContent = props.tipo === 'reservado' ? 'Reserva' : 'Bloqueado';
+  document.getElementById('evento-info').textContent = formatarDataHoraBonita(evento.start);
+
+  const clienteInfo = document.getElementById('evento-cliente');
+  if (props.tipo === 'reservado') {
+    clienteInfo.textContent = `${props.nome_cliente} · ${props.telefone_cliente}`;
+    mostrar(clienteInfo);
+  } else {
+    esconder(clienteInfo);
+  }
+
+  esconder(document.getElementById('evento-erro'));
+  mostrar(document.getElementById('modal-evento'));
+}
+
+async function moverEvento(id, novaData) {
+  try {
+    const resposta = await chamarApiProtegida(`${API}/barbeiro/agendamentos/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ data: formatarDataISO(novaData), hora_inicio: formatarHoraISO(novaData) }),
+    });
+    const dados = await resposta.json();
+    if (!resposta.ok) { alert(dados.erro); return false; }
+    return true;
+  } catch (e) {
+    alert('Erro de conexão ao mover.');
+    return false;
+  }
+}
+
+// ===== Formatação de data/hora =====
+function formatarDataISO(data) {
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+}
+function formatarHoraISO(data) {
+  return `${String(data.getHours()).padStart(2, '0')}:${String(data.getMinutes()).padStart(2, '0')}:00`;
+}
+function formatarDataHoraBonita(data) {
+  return data.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' }) +
+    ' às ' + data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }

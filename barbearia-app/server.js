@@ -9,7 +9,7 @@ app.use(express.json());
 
 // Rotas da API
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api', require('./routes/horarios'));       // públicas: /api/barbeiros e /api/horarios
+app.use('/api', require('./routes/horarios'));       // públicas: /api/barbeiros e /api/disponibilidade
 app.use('/api/reservas', require('./routes/reservas')); // pública: criar reserva
 app.use('/api/barbeiro', require('./routes/barbeiro')); // protegidas: painel do barbeiro
 
