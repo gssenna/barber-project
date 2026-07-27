@@ -72,9 +72,9 @@ router.post('/agendamentos', async (req, res) => {
   let duracaoMinutos, servicoNome = null, servicoPreco = null;
 
   if (tipo === 'reservado') {
-    if (!nome_cliente || !telefone_cliente || !servico_id) {
-      return res.status(400).json({ erro: 'Pra reservar, informe o serviço, nome e telefone do cliente.' });
-    }
+    if (!nome_cliente || !servico_id) {
+  return res.status(400).json({ erro: 'Pra reservar, informe o serviço e o nome do cliente.' });
+  }
     if (email_cliente && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email_cliente)) {
       return res.status(400).json({ erro: 'Email inválido.' });
     }

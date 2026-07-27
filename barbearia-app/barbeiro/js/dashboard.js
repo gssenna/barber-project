@@ -291,8 +291,8 @@ function configurarModalNovo() {
     const nome = document.getElementById('novo-nome').value.trim();
     const telefone = document.getElementById('novo-telefone').value.trim();
 
-    if (tipoSelecionado === 'reservado' && (!nome || !telefone)) {
-      erro.textContent = 'Preencha nome e telefone do cliente.';
+    if (tipoSelecionado === 'reservado' && !nome) {
+  erro.textContent = 'Preencha o nome do cliente.';
       mostrar(erro);
       return;
     }
@@ -303,7 +303,7 @@ function configurarModalNovo() {
       tipo: tipoSelecionado,
       servico_id: tipoSelecionado === 'reservado' ? document.getElementById('novo-servico').value : undefined,
       nome_cliente: tipoSelecionado === 'reservado' ? nome : undefined,
-      telefone_cliente: tipoSelecionado === 'reservado' ? telefone : undefined,
+      telefone_cliente: tipoSelecionado === 'reservado' ? (telefone || null) : undefined,
       email_cliente: tipoSelecionado === 'reservado' ? document.getElementById('novo-email').value.trim() || null : undefined,
     };
 
