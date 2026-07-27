@@ -494,3 +494,17 @@ select:focus, input:focus, button:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Telas de celular bem estreitas (ex: iPhone SE, ~375px): aperta um pouco o
+   espaçamento da tira de dias e dos botões de seta, pra sobrar espaço pros
+   números não ficarem espremidos */
+@media (max-width: 400px) {
+  .navegador-semana { gap: 0.25rem; }
+  .navegador-semana .botao-icone { width: 1.8rem; height: 1.8rem; font-size: 1rem; }
+  .scroller-dias { gap: 0.25rem; }
+  .chip-dia { padding: 0.4rem 0.15rem; }
+  .chip-dia-numero { font-size: 1.05rem; }
+  .chip-dia-semana, .chip-dia-mes { font-size: 0.62rem; }
+  .grupo-telefone { flex-wrap: wrap; }
+  .select-pais { width: 100%; }
+}
