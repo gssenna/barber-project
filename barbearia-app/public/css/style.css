@@ -1,16 +1,18 @@
 /* ===== Tokens de design =====
-   Paleta: preto-carvão quente, marfim, latão (dourado envelhecido) e um vermelho
-   de poste de barbearia usado só no detalhe listrado — a assinatura visual da página. */
+   Paleta "Ironblade": fundo quase preto (parecido com o do claude.ai), textos
+   em branco-gelo, e um prateado acinzentado (aço escovado) como cor de destaque
+   — combinando com o nome/identidade da marca, sem apelar pro dourado clássico
+   de barbearia. */
 :root {
-  --cor-fundo: #17150f;
-  --cor-superficie: #211e16;
-  --cor-superficie-alta: #2a2619;
-  --cor-texto: #efe8d8;
-  --cor-texto-suave: #a89d84;
-  --cor-latao: #c6a15b;
-  --cor-latao-escuro: #8c703b;
-  --cor-vermelho: #9c342b;
-  --cor-verde-disponivel: #4c7a52;
+  --cor-fundo: #0c0c0d;
+  --cor-superficie: #17171a;
+  --cor-superficie-alta: #232327;
+  --cor-texto: #eceef0;
+  --cor-texto-suave: #8b8d93;
+  --cor-latao: #b7bcc4;       /* nome da variável ficou do tema anterior, mas agora é o "prateado" */
+  --cor-latao-escuro: #8d9199;
+  --cor-vermelho: #c0453d;
+  --cor-verde-disponivel: #4c9a68;
   --raio: 3px;
 }
 
@@ -26,27 +28,41 @@ body {
   min-height: 100vh;
 }
 
-/* Faixa listrada estilo poste de barbearia — o elemento de assinatura da página */
+/* Linha fina em degradê prateado — a assinatura visual do topo, no lugar do
+   listrado de poste de barbearia (fica mais "lâmina de aço", combinando com
+   Ironblade) */
 .topo {
   position: relative;
   text-align: center;
   padding: 3rem 1.5rem 2.5rem;
-  border-bottom: 6px solid transparent;
-  border-image: repeating-linear-gradient(
-    -45deg,
-    var(--cor-vermelho) 0 10px,
-    var(--cor-texto) 10px 20px,
-    var(--cor-latao) 20px 30px
-  ) 6;
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(
+    90deg,
+    transparent, var(--cor-texto-suave) 20%, var(--cor-texto) 50%, var(--cor-texto-suave) 80%, transparent
+  ) 2;
+}
+
+.logo-espaco {
+  /* Espaço reservado pra logo. Quando a imagem existir (public/img/logo.png),
+     troque a div .logo-espaco no HTML por <img class="logo-imagem">. */
+  height: 0;
+}
+.logo-imagem {
+  max-height: 5rem;
+  margin-bottom: 0.75rem;
 }
 
 .topo h1 {
   font-family: 'Oswald', sans-serif;
   font-weight: 700;
   font-size: clamp(1.8rem, 5vw, 2.6rem);
-  letter-spacing: 0.03em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   margin: 0;
+  background: linear-gradient(90deg, var(--cor-texto), var(--cor-texto-suave), var(--cor-texto));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .topo h1 span { color: var(--cor-latao); }
@@ -57,11 +73,231 @@ body {
   font-size: 1rem;
 }
 
-.conteudo {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+/* ===== Indicador de passos ===== */
+.passos {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem 0;
+  flex-wrap: wrap;
 }
+.passo {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--cor-texto-suave);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--cor-superficie-alta);
+}
+.passo.ativo { color: var(--cor-fundo); background: var(--cor-latao); border-color: var(--cor-latao); }
+.passo.concluido { color: var(--cor-latao); border-color: var(--cor-latao); }
+
+/* ===== Transição entre etapas ===== */
+.etapa {
+  animation: entrada-etapa 0.35s ease;
+}
+.etapa-escondida { display: none; }
+@keyframes entrada-etapa {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.etapa-titulo {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 1.3rem;
+  text-align: center;
+  margin: 0.5rem 0 1.5rem;
+}
+
+.botao-voltar {
+  background: none;
+  border: none;
+  color: var(--cor-texto-suave);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  padding: 0;
+}
+.botao-voltar:hover { color: var(--cor-latao); }
+
+/* ===== Cards de barbeiro ===== */
+.grade-barbeiros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+.cartao-barbeiro {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-superficie-alta);
+  border-radius: var(--raio);
+  padding: 1.5rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--cor-texto);
+  transition: border-color 0.15s, transform 0.15s;
+}
+.cartao-barbeiro:hover { border-color: var(--cor-latao); transform: translateY(-2px); }
+.cartao-barbeiro-avatar {
+  width: 3.2rem; height: 3.2rem;
+  border-radius: 50%;
+  background: var(--cor-latao);
+  color: var(--cor-fundo);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+  font-size: 1.2rem;
+  margin: 0 auto 0.75rem;
+}
+.cartao-barbeiro-nome { font-family: 'Oswald', sans-serif; font-size: 1rem; text-transform: uppercase; }
+
+/* ===== Cards de serviço ===== */
+.grade-servicos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  max-width: 700px;
+  margin: 0 auto;
+}
+.cartao-servico {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-superficie-alta);
+  border-radius: var(--raio);
+  padding: 1.25rem;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--cor-texto);
+  transition: border-color 0.15s, transform 0.15s;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cartao-servico:hover { border-color: var(--cor-latao); transform: translateY(-2px); }
+.cartao-servico-nome { font-family: 'Oswald', sans-serif; font-size: 1.05rem; text-transform: uppercase; }
+.cartao-servico-duracao { color: var(--cor-texto-suave); font-size: 0.82rem; margin-top: 0.25rem; }
+.cartao-servico-preco { font-family: 'Oswald', sans-serif; font-size: 1.3rem; color: var(--cor-latao); font-weight: 600; }
+
+/* ===== Data e horário ===== */
+.cabecalho-horario {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  position: relative;
+  max-width: 700px;
+  margin: 0 auto 1.25rem;
+}
+.botao-calendario-icone {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-superficie-alta);
+  color: var(--cor-latao);
+  width: 2.4rem; height: 2.4rem;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  cursor: pointer;
+  position: absolute;
+  right: 0;
+}
+.botao-calendario-icone:hover { border-color: var(--cor-latao); }
+.input-data-oculto {
+  position: absolute;
+  right: 0;
+  opacity: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  pointer-events: none;
+}
+
+.navegador-semana {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 700px;
+  margin: 0 auto 0.5rem;
+}
+.navegador-semana .botao-icone { flex: 0 0 auto; }
+
+.scroller-dias {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.4rem;
+  flex: 1;
+  padding: 0.25rem 0.1rem 1rem;
+}
+.chip-dia {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-superficie-alta);
+  border-radius: var(--raio);
+  padding: 0.5rem 0.3rem;
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--cor-texto);
+}
+.chip-dia:hover { border-color: var(--cor-latao); }
+.chip-dia.selecionado { background: var(--cor-latao); border-color: var(--cor-latao); color: var(--cor-fundo); }
+.chip-dia-semana { display: block; font-size: 0.72rem; text-transform: uppercase; opacity: 0.8; }
+.chip-dia-numero { display: block; font-family: 'Oswald', sans-serif; font-size: 1.3rem; font-weight: 600; }
+.chip-dia-mes { display: block; font-size: 0.68rem; opacity: 0.8; }
+
+.rotulo-horarios {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+  text-align: center;
+  color: var(--cor-texto-suave);
+  margin: 1rem 0 0.75rem;
+}
+
+.lista-horarios {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.pilula-horario {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-superficie-alta);
+  border-radius: 999px;
+  padding: 0.75rem 1.25rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--cor-texto);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pilula-horario:hover { border-color: var(--cor-latao); background: rgba(198,161,91,0.08); }
+
+.sem-horarios-dia {
+  text-align: center;
+  color: var(--cor-texto-suave);
+  padding: 2rem 0;
+}
+
+/* ===== Telefone com seletor de país ===== */
+.grupo-telefone {
+  display: flex;
+  gap: 0.5rem;
+}
+.select-pais {
+  flex: 0 0 auto;
+  width: 6.5rem;
+  padding-left: 0.5rem;
+  padding-right: 0.3rem;
+}
+.grupo-telefone input[type="tel"] { flex: 1; }
 
 .controles {
   display: flex;

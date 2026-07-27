@@ -1,6 +1,4 @@
-// Dado o expediente do barbeiro (configuracoes) e os agendamentos já existentes
-// num dia, calcula a "grade" de horários daquele dia — sem precisar ter
-// nenhuma linha salva no banco pros horários livres.
+// Funções utilitárias de data/hora + cálculo de horários disponíveis.
 
 function paraMinutos(horaTexto) {
   const [h, m] = horaTexto.split(':').map(Number);
@@ -13,36 +11,44 @@ function paraHoraTexto(minutosTotais) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
 }
 
-// dataISO: "2026-07-20" | diaDaSemana: 0-6 (0=domingo)
-// config: { dias_semana: "1,2,3,4,5,6", hora_abertura, hora_fechamento, duracao_minutos }
-// agendamentosDoDia: [{ hora_inicio, tipo, nome_cliente, telefone_cliente, id }]
-function calcularGradeDoDia(dataISO, diaDaSemana, config, agendamentosDoDia) {
+// A cada quantos minutos um novo horário "pode começar". Repare que isso é
+// diferente da duração do serviço — por exemplo, com passo de 15min, um corte
+// de 45min pode começar às 9:00, 9:15, 9:30... (não só de hora em hora).
+const PASSO_MINUTOS = 15;
+
+// Verifica se dois intervalos de tempo (em minutos) se sobrepõem
+function seSobrepoe(inicioA, fimA, inicioB, fimB) {
+  return inicioA < fimB && fimA > inicioB;
+}
+
+// Calcula os horários de início disponíveis num dia, pra um serviço de uma
+// certa duração, considerando o expediente e os agendamentos já existentes.
+// Retorna uma lista de strings tipo "09:00:00".
+function calcularHorariosDisponiveis({ dataISO, diaDaSemana, config, duracaoServico, agendamentosDoDia, agora }) {
   const diasPermitidos = config.dias_semana.split(',').map(Number);
   if (!diasPermitidos.includes(diaDaSemana)) return [];
 
-  const inicio = paraMinutos(config.hora_abertura);
-  const fim = paraMinutos(config.hora_fechamento);
-  const duracao = config.duracao_minutos;
+  const aberturaMin = paraMinutos(config.hora_abertura);
+  const fechamentoMin = paraMinutos(config.hora_fechamento);
 
-  // Mapa rápido: "09:00:00" -> agendamento
-  const porHoraInicio = {};
-  agendamentosDoDia.forEach(a => { porHoraInicio[a.hora_inicio] = a; });
+  const ocupados = agendamentosDoDia.map(a => ({
+    inicio: paraMinutos(a.hora_inicio),
+    fim: paraMinutos(a.hora_fim),
+  }));
 
-  const grade = [];
-  for (let m = inicio; m + duracao <= fim; m += duracao) {
-    const horaInicio = paraHoraTexto(m);
-    const horaFim = paraHoraTexto(m + duracao);
-    const agendamento = porHoraInicio[horaInicio];
+  const agoraDataISO = agora ? `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}` : null;
+  const agoraMinutos = agora ? agora.getHours() * 60 + agora.getMinutes() : null;
+  const ehHoje = agoraDataISO === dataISO;
 
-    grade.push({
-      data: dataISO,
-      hora_inicio: horaInicio,
-      hora_fim: horaFim,
-      status: agendamento ? agendamento.tipo : 'disponivel',
-      agendamento_id: agendamento ? agendamento.id : null,
-    });
+  const disponiveis = [];
+  for (let inicio = aberturaMin; inicio + duracaoServico <= fechamentoMin; inicio += PASSO_MINUTOS) {
+    if (ehHoje && inicio <= agoraMinutos) continue; // já passou
+
+    const fim = inicio + duracaoServico;
+    const conflita = ocupados.some(o => seSobrepoe(inicio, fim, o.inicio, o.fim));
+    if (!conflita) disponiveis.push(paraHoraTexto(inicio));
   }
-  return grade;
+  return disponiveis;
 }
 
-module.exports = { calcularGradeDoDia, paraMinutos, paraHoraTexto };
+module.exports = { paraMinutos, paraHoraTexto, seSobrepoe, calcularHorariosDisponiveis, PASSO_MINUTOS };

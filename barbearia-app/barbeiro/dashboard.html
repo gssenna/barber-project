@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Painel do barbeiro</title>
-<link rel="stylesheet" href="../public/css/style.css">
+<link rel="stylesheet" href="/css/style.css">
 <link rel="stylesheet" href="css/dashboard.css">
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.21/locales/pt-br.global.min.js"></script>
@@ -12,17 +12,12 @@
 <body>
 
   <div class="barra-superior">
-    <h1>IRON<span>BLADE</span> · <span id="nome-barbeiro-topo"></span></h1>
+    <h1>Studio<span>Barber</span> · <span id="nome-barbeiro-topo"></span></h1>
     <div class="barra-superior-acoes">
+      <button id="botao-faturamento" class="botao-secundario">Faturamento</button>
       <button id="botao-config" class="botao-secundario">Expediente</button>
       <button id="botao-sair" class="botao-secundario">Sair</button>
     </div>
-  </div>
-
-  <div class="legenda">
-    <span class="legenda-item"><i class="bolinha bolinha-reservado"></i> Reservado</span>
-    <span class="legenda-item"><i class="bolinha bolinha-bloqueado"></i> Bloqueado</span>
-    <span class="legenda-item"><i class="bolinha bolinha-disponivel"></i> Livre (clique ou arraste pra marcar)</span>
   </div>
 
   <div id="calendario"></div>
@@ -41,10 +36,14 @@
 
       <form id="form-novo">
         <div id="campos-cliente" class="escondido">
+          <label for="novo-servico">Serviço</label>
+          <select id="novo-servico"></select>
           <label for="novo-nome">Nome do cliente</label>
           <input type="text" id="novo-nome" placeholder="Ex: João Silva">
           <label for="novo-telefone">Telefone</label>
           <input type="tel" id="novo-telefone" placeholder="Ex: (11) 91234-5678">
+          <label for="novo-email">Email (opcional)</label>
+          <input type="email" id="novo-email" placeholder="Ex: cliente@email.com">
         </div>
         <button type="submit" class="botao-primario">Salvar</button>
         <p id="novo-erro" class="mensagem-erro escondido"></p>
@@ -81,7 +80,7 @@
           <input type="time" id="config-hora-fechamento" required>
         </div>
         <div class="campo">
-          <label for="config-duracao">Duração de cada corte (min)</label>
+          <label for="config-duracao">Duração do bloqueio manual (min)</label>
           <input type="number" id="config-duracao" min="5" step="5" required>
         </div>
         <div class="campo campo-largo">
@@ -101,6 +100,20 @@
           <p id="config-mensagem" class="mensagem-erro escondido"></p>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: faturamento da semana -->
+  <div id="modal-faturamento" class="modal-fundo escondido">
+    <div class="modal-caixa">
+      <button class="botao-fechar" data-fechar="modal-faturamento" aria-label="Fechar">×</button>
+      <h2>Faturamento da semana</h2>
+      <p id="faturamento-periodo" class="modal-info"></p>
+      <div id="faturamento-lista" class="lista-faturamento"></div>
+      <div class="faturamento-total">
+        <span>Total da semana</span>
+        <strong id="faturamento-total-valor">€0</strong>
+      </div>
     </div>
   </div>
 

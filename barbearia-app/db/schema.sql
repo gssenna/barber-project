@@ -43,9 +43,11 @@ CREATE TABLE agendamentos (
   hora_fim TIME NOT NULL,
   tipo ENUM('reservado', 'bloqueado') NOT NULL,
   nome_cliente VARCHAR(100) NULL,
-  telefone_cliente VARCHAR(20) NULL,
+  telefone_cliente VARCHAR(25) NULL,
+  email_cliente VARCHAR(150) NULL,
+  servico_nome VARCHAR(60) NULL,   -- ex: "Cabelo + Barba" (preenchido só quando reservado)
+  servico_preco DECIMAL(6,2) NULL, -- preço cobrado NESSE agendamento (guardado aqui pra não mudar
+                                    -- retroativamente se o preço do serviço for alterado no futuro)
   criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (barbeiro_id) REFERENCES barbeiros(id) ON DELETE CASCADE,
-  -- Impede, no nível do banco, dois eventos no mesmo horário do mesmo barbeiro
-  UNIQUE KEY horario_unico (barbeiro_id, data, hora_inicio)
+  FOREIGN KEY (barbeiro_id) REFERENCES barbeiros(id) ON DELETE CASCADE
 );

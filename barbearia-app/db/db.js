@@ -9,6 +9,11 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME || 'barbearia',
   waitForConnections: true,
   connectionLimit: 10,
+  // Importante: sem isso, o driver converte colunas DATE/DATETIME em objetos Date
+  // do JavaScript, que aplicam fuso horário e podem "voltar" um dia dependendo de
+  // onde o servidor está rodando. Com dateStrings, vem sempre como texto puro
+  // ("2026-07-25"), sem conversão nenhuma — sem essa fonte de bug.
+  dateStrings: true,
 });
 
 module.exports = pool;

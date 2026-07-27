@@ -6,6 +6,7 @@ if (!token && window.location.pathname.includes('dashboard')) {
 }
 
 let config = null;       // configuração de expediente do barbeiro
+let servicos = [];       // lista de serviços (nome, preço, duração)
 let calendario = null;   // instância do FullCalendar
 let dataClicada = null;  // guarda a data/hora clicada nos modais
 let tipoSelecionado = 'bloqueado';
@@ -37,10 +38,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   configurarModalNovo();
   configurarModalEvento();
   configurarModalConfig();
+  configurarModalFaturamento();
 
   await carregarConfiguracao();
+  await carregarServicos();
   iniciarCalendario();
 });
+
+async function carregarServicos() {
+  const resposta = await fetch(`${API}/servicos`);
+  servicos = await resposta.json();
+  document.getElementById('novo-servico').innerHTML =
+    servicos.map(s => `<option value="${s.id}">${s.nome} — €${s.preco} (${s.duracao_minutos}min)</option>`).join('');
+}
 
 function configurarBotaoSair() {
   document.getElementById('botao-sair').addEventListener('click', () => {
@@ -143,28 +153,41 @@ function iniciarCalendario() {
     slotMaxTime: '22:00:00',
     allDaySlot: false,
     nowIndicator: true,
-    selectable: true,
-    selectMirror: true,
-    selectOverlap: false,
     editable: true,        // permite arrastar eventos pra mover
     eventDurationEditable: false, // não deixa esticar/encolher (duração é fixa)
     eventStartEditable: true,
 
-    // Clique num dia inteiro (visão de mês/ano) -> abre a visão do dia
+    // Nas visões de semana/dia, adiciona um botãozinho no cabeçalho de cada
+    // coluna pra bloquear o dia inteiro de uma vez (ex: dia de folga)
+    dayHeaderContent(arg) {
+      const rotulo = arg.text;
+      if (arg.view.type !== 'timeGridWeek' && arg.view.type !== 'timeGridDay') {
+        return { html: rotulo };
+      }
+      const dataISO = formatarDataISO(arg.date);
+      return {
+        html: `${rotulo} <button class="botao-bloquear-dia" data-data="${dataISO}" title="Bloquear o dia inteiro">🚫</button>`,
+      };
+    },
+
+    dayHeaderDidMount(arg) {
+      const botao = arg.el.querySelector('.botao-bloquear-dia');
+      if (!botao) return;
+      botao.addEventListener('click', (evento) => {
+        evento.stopPropagation();
+        bloquearDiaInteiro(botao.dataset.data);
+      });
+    },
+
+    // Um único clique em cima de um horário livre já abre o modal de ação
+    // (mês/ano: clicar num dia leva pra visão do dia; semana/dia: clicar num
+    // horário livre abre direto "Bloquear" ou "Marcar cliente")
     dateClick(info) {
       if (info.view.type === 'dayGridMonth' || info.view.type === 'multiMonthYear') {
         calendario.changeView('timeGridDay', info.date);
+      } else {
+        abrirModalNovo(info.date);
       }
-    },
-
-    // Selecionou um intervalo de horário livre (visão semana/dia) -> abrir modal de criação
-    select(info) {
-      if (info.view.type !== 'timeGridWeek' && info.view.type !== 'timeGridDay') {
-        calendario.unselect();
-        return;
-      }
-      abrirModalNovo(info.start);
-      calendario.unselect();
     },
 
     // Busca os eventos (reservas e bloqueios) do período visível
@@ -177,10 +200,10 @@ function iniciarCalendario() {
           sucesso(agendamentos.map(a => ({
             id: String(a.id),
             title: a.tipo === 'reservado' ? a.nome_cliente : 'Bloqueado',
-            start: `${a.data.split('T')[0]}T${a.hora_inicio}`,
-            end: `${a.data.split('T')[0]}T${a.hora_fim}`,
+            start: `${a.data}T${a.hora_inicio}`,
+            end: `${a.data}T${a.hora_fim}`,
             classNames: [a.tipo === 'reservado' ? 'evento-reservado' : 'evento-bloqueado'],
-            extendedProps: { tipo: a.tipo, nome_cliente: a.nome_cliente, telefone_cliente: a.telefone_cliente },
+            extendedProps: { tipo: a.tipo, nome_cliente: a.nome_cliente, telefone_cliente: a.telefone_cliente, email_cliente: a.email_cliente, servico_nome: a.servico_nome },
           })));
         })
         .catch(falha);
@@ -199,6 +222,55 @@ function iniciarCalendario() {
 
   aplicarExpedienteNoCalendario();
   calendario.render();
+}
+
+async function bloquearDiaInteiro(dataISO) {
+  if (!confirm(`Bloquear o dia ${dataISO.split('-').reverse().join('/')} inteiro?`)) return;
+  try {
+    const resposta = await chamarApiProtegida(`${API}/barbeiro/bloquear-dia`, {
+      method: 'POST',
+      body: JSON.stringify({ data: dataISO }),
+    });
+    const dados = await resposta.json();
+    if (!resposta.ok) { alert(dados.erro); return; }
+    calendario.refetchEvents();
+  } catch (e) {
+    alert('Erro de conexão.');
+  }
+}
+
+// ===== Faturamento da semana =====
+function configurarModalFaturamento() {
+  document.getElementById('botao-faturamento').addEventListener('click', async () => {
+    const lista = document.getElementById('faturamento-lista');
+    lista.innerHTML = '<p class="sem-horarios-dia">Carregando...</p>';
+    mostrar(document.getElementById('modal-faturamento'));
+
+    try {
+      const resposta = await chamarApiProtegida(`${API}/barbeiro/resumo-semana`);
+      const dados = await resposta.json();
+
+      const inicio = dados.data_inicio.split('-').reverse().join('/');
+      const fim = dados.data_fim.split('-').reverse().join('/');
+      document.getElementById('faturamento-periodo').textContent = `${inicio} — ${fim}`;
+
+      const entradas = Object.entries(dados.por_servico);
+      if (entradas.length === 0) {
+        lista.innerHTML = '<p class="sem-horarios-dia">Nenhuma reserva essa semana ainda.</p>';
+      } else {
+        lista.innerHTML = entradas.map(([nome, info]) => `
+          <div class="linha-faturamento">
+            <span class="linha-faturamento-nome">${nome}<span class="linha-faturamento-qtd">× ${info.quantidade}</span></span>
+            <span class="linha-faturamento-valor">€${info.total.toFixed(2)}</span>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('faturamento-total-valor').textContent = `€${dados.total_geral.toFixed(2)}`;
+    } catch (e) {
+      lista.innerHTML = '<p class="mensagem-erro">Erro ao carregar o faturamento.</p>';
+    }
+  });
 }
 
 // ===== Modal: criar bloqueio ou reserva manual =====
@@ -229,8 +301,10 @@ function configurarModalNovo() {
       data: formatarDataISO(dataClicada),
       hora_inicio: formatarHoraISO(dataClicada),
       tipo: tipoSelecionado,
+      servico_id: tipoSelecionado === 'reservado' ? document.getElementById('novo-servico').value : undefined,
       nome_cliente: tipoSelecionado === 'reservado' ? nome : undefined,
       telefone_cliente: tipoSelecionado === 'reservado' ? telefone : undefined,
+      email_cliente: tipoSelecionado === 'reservado' ? document.getElementById('novo-email').value.trim() || null : undefined,
     };
 
     try {
@@ -285,7 +359,7 @@ function abrirModalEvento(evento) {
 
   const clienteInfo = document.getElementById('evento-cliente');
   if (props.tipo === 'reservado') {
-    clienteInfo.textContent = `${props.nome_cliente} · ${props.telefone_cliente}`;
+    clienteInfo.textContent = `${props.nome_cliente} · ${props.telefone_cliente}${props.email_cliente ? ' · ' + props.email_cliente : ''}${props.servico_nome ? ' · ' + props.servico_nome : ''}`;
     mostrar(clienteInfo);
   } else {
     esconder(clienteInfo);

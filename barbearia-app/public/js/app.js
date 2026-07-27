@@ -1,98 +1,227 @@
 const API = '/api';
-const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const DIAS_SEMANA_ABREV = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MESES_ABREV = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Países mais comuns pros clientes da Ironblade (Irlanda em primeiro, por padrão).
+// maxDigitos = quantidade máxima de dígitos do número LOCAL (sem o código do país
+// e sem o "0" inicial que alguns países usam só no formato doméstico).
+const PAISES = [
+  { dial: '+353', bandeira: '🇮🇪', nome: 'Ireland', maxDigitos: 9 },
+  { dial: '+44',  bandeira: '🇬🇧', nome: 'United Kingdom', maxDigitos: 10 },
+  { dial: '+1',   bandeira: '🇺🇸', nome: 'United States', maxDigitos: 10 },
+  { dial: '+1',   bandeira: '🇨🇦', nome: 'Canada', maxDigitos: 10 },
+  { dial: '+55',  bandeira: '🇧🇷', nome: 'Brazil', maxDigitos: 11 },
+  { dial: '+351', bandeira: '🇵🇹', nome: 'Portugal', maxDigitos: 9 },
+  { dial: '+34',  bandeira: '🇪🇸', nome: 'Spain', maxDigitos: 9 },
+  { dial: '+33',  bandeira: '🇫🇷', nome: 'France', maxDigitos: 9 },
+  { dial: '+49',  bandeira: '🇩🇪', nome: 'Germany', maxDigitos: 11 },
+  { dial: '+39',  bandeira: '🇮🇹', nome: 'Italy', maxDigitos: 10 },
+  { dial: '+31',  bandeira: '🇳🇱', nome: 'Netherlands', maxDigitos: 9 },
+  { dial: '+48',  bandeira: '🇵🇱', nome: 'Poland', maxDigitos: 9 },
+  { dial: '+52',  bandeira: '🇲🇽', nome: 'Mexico', maxDigitos: 10 },
+  { dial: '+54',  bandeira: '🇦🇷', nome: 'Argentina', maxDigitos: 10 },
+];
 
 let barbeiroSelecionado = null;
-let inicioSemana = obterInicioDaSemana(new Date());
-let horarioEscolhido = null; // { data, hora_inicio }
+let servicoSelecionado = null;
+let dataSelecionada = obterHojeLocal();
+let inicioSemanaExibida = obterSegundaFeira(dataSelecionada);
+let horarioEscolhido = null; // string "HH:MM:SS"
 
-function obterInicioDaSemana(data) {
+function obterHojeLocal() {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return hoje;
+}
+function obterSegundaFeira(data) {
   const d = new Date(data);
-  d.setDate(d.getDate() - d.getDay());
-  d.setHours(0, 0, 0, 0);
+  const diferenca = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - diferenca);
   return d;
 }
-function formatarDataISO(data) { return data.toISOString().split('T')[0]; }
-function formatarDataBonita(data) { return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }); }
-function ehHoje(data) { return data.toDateString() === new Date().toDateString(); }
+function formatarDataISO(data) {
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+}
 function formatarHora(horaCompleta) { return horaCompleta.slice(0, 5); }
 function mostrar(el) { el.classList.remove('escondido'); }
 function esconder(el) { el.classList.add('escondido'); }
 
+// ===== Navegação entre passos =====
+function irPara(idEtapa, numeroPasso) {
+  document.querySelectorAll('.etapa').forEach(e => e.classList.add('etapa-escondida'));
+  document.getElementById(idEtapa).classList.remove('etapa-escondida');
+
+  document.querySelectorAll('.passo').forEach(p => {
+    const n = Number(p.dataset.passo);
+    p.classList.toggle('ativo', n === numeroPasso);
+    p.classList.toggle('concluido', n < numeroPasso);
+  });
+}
+
+document.querySelectorAll('[data-voltar]').forEach(botao => {
+  botao.addEventListener('click', () => {
+    const alvo = botao.dataset.voltar;
+    const numero = alvo === 'etapa-barbeiro' ? 1 : 2;
+    irPara(alvo, numero);
+  });
+});
+
+// ===== Passo 1: barbeiros =====
 async function carregarBarbeiros() {
   const resposta = await fetch(`${API}/barbeiros`);
   const barbeiros = await resposta.json();
+  const lista = document.getElementById('lista-barbeiros');
 
-  const select = document.getElementById('barbeiro');
-  select.innerHTML = barbeiros.map(b => `<option value="${b.id}">${b.nome}</option>`).join('');
+  if (barbeiros.length === 0) {
+    lista.innerHTML = '<p class="sem-horarios-dia">No barbers registered yet.</p>';
+    return;
+  }
 
-  if (barbeiros.length > 0) {
-    barbeiroSelecionado = barbeiros[0].id;
-    carregarSemana();
-  } else {
-    document.getElementById('grade-semana').innerHTML = '<p class="sem-horarios">Nenhum barbeiro cadastrado ainda.</p>';
+  lista.innerHTML = barbeiros.map(b => `
+    <button class="cartao-barbeiro" data-id="${b.id}">
+      <div class="cartao-barbeiro-avatar">${b.nome.charAt(0).toUpperCase()}</div>
+      <div class="cartao-barbeiro-nome">${b.nome}</div>
+    </button>
+  `).join('');
+
+  lista.querySelectorAll('.cartao-barbeiro').forEach(cartao => {
+    cartao.addEventListener('click', () => {
+      barbeiroSelecionado = cartao.dataset.id;
+      carregarServicos();
+      irPara('etapa-servico', 2);
+    });
+  });
+}
+
+// ===== Passo 2: serviços =====
+async function carregarServicos() {
+  const resposta = await fetch(`${API}/servicos`);
+  const servicos = await resposta.json();
+  const lista = document.getElementById('lista-servicos');
+
+  lista.innerHTML = servicos.map(s => `
+    <button class="cartao-servico" data-id="${s.id}">
+      <div>
+        <div class="cartao-servico-nome">${s.nome}</div>
+        <div class="cartao-servico-duracao">${s.duracao_minutos} minutes</div>
+      </div>
+      <div class="cartao-servico-preco">€${s.preco}</div>
+    </button>
+  `).join('');
+
+  lista.querySelectorAll('.cartao-servico').forEach(cartao => {
+    cartao.addEventListener('click', () => {
+      servicoSelecionado = cartao.dataset.id;
+      irPara('etapa-horario', 3);
+      montarScrollerDias();
+      carregarHorariosDoDia();
+    });
+  });
+}
+
+// ===== Passo 3: data e horário =====
+function montarScrollerDias() {
+  const scroller = document.getElementById('scroller-dias');
+  scroller.innerHTML = '';
+
+  for (let i = 0; i < 7; i++) {
+    const dia = new Date(inicioSemanaExibida);
+    dia.setDate(dia.getDate() + i);
+
+    const chip = document.createElement('button');
+    chip.className = 'chip-dia' + (formatarDataISO(dia) === formatarDataISO(dataSelecionada) ? ' selecionado' : '');
+    chip.innerHTML = `
+      <span class="chip-dia-semana">${DIAS_SEMANA_ABREV[dia.getDay()]}</span>
+      <span class="chip-dia-numero">${dia.getDate()}</span>
+      <span class="chip-dia-mes">${MESES_ABREV[dia.getMonth()]}</span>
+    `;
+    chip.addEventListener('click', () => {
+      dataSelecionada = dia;
+      montarScrollerDias();
+      carregarHorariosDoDia();
+    });
+    scroller.appendChild(chip);
   }
 }
 
-async function carregarSemana() {
-  const fimSemana = new Date(inicioSemana);
-  fimSemana.setDate(fimSemana.getDate() + 6);
+function navegarSemana(direcao) {
+  const diferencaDias = Math.round((dataSelecionada - inicioSemanaExibida) / 86400000);
+  inicioSemanaExibida.setDate(inicioSemanaExibida.getDate() + direcao * 7);
+  dataSelecionada = new Date(inicioSemanaExibida);
+  dataSelecionada.setDate(inicioSemanaExibida.getDate() + diferencaDias);
+  montarScrollerDias();
+  carregarHorariosDoDia();
+}
+document.getElementById('semana-anterior').addEventListener('click', () => navegarSemana(-1));
+document.getElementById('semana-proxima').addEventListener('click', () => navegarSemana(1));
 
-  document.getElementById('rotulo-semana').textContent =
-    `${formatarDataBonita(inicioSemana)} – ${formatarDataBonita(fimSemana)}`;
+document.getElementById('botao-calendario').addEventListener('click', () => {
+  const input = document.getElementById('input-data-oculto');
+  input.value = formatarDataISO(dataSelecionada);
+  if (input.showPicker) input.showPicker();
+  else input.click();
+});
+
+document.getElementById('input-data-oculto').addEventListener('change', (evento) => {
+  const [ano, mes, dia] = evento.target.value.split('-').map(Number);
+  dataSelecionada = new Date(ano, mes - 1, dia);
+  inicioSemanaExibida = obterSegundaFeira(dataSelecionada);
+  montarScrollerDias();
+  carregarHorariosDoDia();
+});
+
+async function carregarHorariosDoDia() {
+  const lista = document.getElementById('lista-horarios');
+  lista.innerHTML = '<p class="sem-horarios-dia">Loading...</p>';
 
   const params = new URLSearchParams({
     barbeiro_id: barbeiroSelecionado,
-    data_inicio: formatarDataISO(inicioSemana),
-    data_fim: formatarDataISO(fimSemana),
+    servico_id: servicoSelecionado,
+    data: formatarDataISO(dataSelecionada),
   });
 
-  const resposta = await fetch(`${API}/disponibilidade?${params}`);
-  const horarios = await resposta.json();
-  desenharGrade(horarios);
-}
+  const resposta = await fetch(`${API}/disponibilidade-dia?${params}`);
+  const dados = await resposta.json();
 
-function desenharGrade(horarios) {
-  const grade = document.getElementById('grade-semana');
-  grade.innerHTML = '';
-
-  for (let i = 0; i < 7; i++) {
-    const dia = new Date(inicioSemana);
-    dia.setDate(dia.getDate() + i);
-    const dataISO = formatarDataISO(dia);
-    const horariosDoDia = horarios.filter(h => h.data === dataISO);
-
-    const coluna = document.createElement('div');
-    coluna.className = 'coluna-dia' + (ehHoje(dia) ? ' hoje' : '');
-
-    const titulo = document.createElement('h3');
-    titulo.textContent = `${DIAS_SEMANA[dia.getDay()]} ${formatarDataBonita(dia)}`;
-    coluna.appendChild(titulo);
-
-    if (horariosDoDia.length === 0) {
-      const vazio = document.createElement('p');
-      vazio.className = 'sem-horarios';
-      vazio.textContent = 'Fechado';
-      coluna.appendChild(vazio);
-    }
-
-    horariosDoDia.forEach(h => {
-      const botao = document.createElement('button');
-      botao.className = 'slot' + (h.status !== 'disponivel' ? ' indisponivel' : '');
-      botao.textContent = formatarHora(h.hora_inicio);
-      botao.disabled = h.status !== 'disponivel';
-      botao.addEventListener('click', () => abrirModalReserva(h, dia));
-      coluna.appendChild(botao);
-    });
-
-    grade.appendChild(coluna);
+  if (!dados.horarios || dados.horarios.length === 0) {
+    lista.innerHTML = '<p class="sem-horarios-dia">No times available this day. Try another date.</p>';
+    return;
   }
+
+  lista.innerHTML = dados.horarios.map(h => `<button class="pilula-horario" data-hora="${h}">${formatarHora(h)}</button>`).join('');
+  lista.querySelectorAll('.pilula-horario').forEach(botao => {
+    botao.addEventListener('click', () => abrirModalReserva(botao.dataset.hora));
+  });
 }
 
-function abrirModalReserva(horario, dia) {
-  horarioEscolhido = { data: horario.data, hora_inicio: horario.hora_inicio };
+// ===== Seletor de país do telefone =====
+function montarSelectPais() {
+  const select = document.getElementById('select-pais');
+  select.innerHTML = PAISES.map((p, i) =>
+    `<option value="${i}">${p.bandeira} ${p.dial}</option>`
+  ).join('');
+  atualizarLimiteTelefone();
+}
+document.getElementById('select-pais').addEventListener('change', atualizarLimiteTelefone);
+
+function atualizarLimiteTelefone() {
+  const pais = PAISES[document.getElementById('select-pais').value];
+  document.getElementById('telefone').maxLength = pais.maxDigitos;
+}
+
+// Só deixa dígitos serem digitados no campo de telefone
+document.getElementById('telefone').addEventListener('input', (evento) => {
+  evento.target.value = evento.target.value.replace(/\D/g, '');
+});
+
+// ===== Modal de confirmação =====
+function abrirModalReserva(horaInicio) {
+  horarioEscolhido = horaInicio;
   document.getElementById('modal-horario-info').textContent =
-    `${DIAS_SEMANA[dia.getDay()]}, ${formatarDataBonita(dia)} às ${formatarHora(horario.hora_inicio)}`;
+    `${DIAS_SEMANA_ABREV[dataSelecionada.getDay()]}, ${dataSelecionada.getDate()}/${String(dataSelecionada.getMonth() + 1).padStart(2, '0')} at ${formatarHora(horaInicio)}`;
   document.getElementById('form-reserva').reset();
+  document.getElementById('select-pais').value = 0; // volta pra Irlanda por padrão
+  atualizarLimiteTelefone();
   esconder(document.getElementById('mensagem-erro'));
   mostrar(document.getElementById('modal'));
 }
@@ -100,14 +229,24 @@ function abrirModalReserva(horario, dia) {
 document.getElementById('fechar-modal').addEventListener('click', () => esconder(document.getElementById('modal')));
 document.getElementById('fechar-sucesso').addEventListener('click', () => {
   esconder(document.getElementById('modal-sucesso'));
-  carregarSemana();
+  carregarHorariosDoDia();
 });
 
 document.getElementById('form-reserva').addEventListener('submit', async (evento) => {
   evento.preventDefault();
   const nome = document.getElementById('nome').value.trim();
-  const telefone = document.getElementById('telefone').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const numeroLocal = document.getElementById('telefone').value.trim();
+  const pais = PAISES[document.getElementById('select-pais').value];
   const caixaErro = document.getElementById('mensagem-erro');
+
+  if (numeroLocal.length < 6) {
+    caixaErro.textContent = 'Please enter a valid phone number.';
+    mostrar(caixaErro);
+    return;
+  }
+
+  const telefoneCompleto = pais.dial + numeroLocal;
 
   try {
     const resposta = await fetch(`${API}/reservas`, {
@@ -115,40 +254,31 @@ document.getElementById('form-reserva').addEventListener('submit', async (evento
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         barbeiro_id: barbeiroSelecionado,
-        data: horarioEscolhido.data,
-        hora_inicio: horarioEscolhido.hora_inicio,
+        servico_id: servicoSelecionado,
+        data: formatarDataISO(dataSelecionada),
+        hora_inicio: horarioEscolhido,
         nome,
-        telefone,
+        email,
+        telefone: telefoneCompleto,
       }),
     });
     const dados = await resposta.json();
 
     if (!resposta.ok) {
-      caixaErro.textContent = dados.erro || 'Não foi possível confirmar a reserva.';
+      caixaErro.textContent = dados.erro || 'Could not confirm the booking.';
       mostrar(caixaErro);
       return;
     }
 
     esconder(document.getElementById('modal'));
-    document.getElementById('sucesso-info').textContent = `Você receberá a confirmação pelo telefone informado. Até breve, ${nome}!`;
+    document.getElementById('sucesso-info').textContent =
+      `A confirmation has been sent to ${email}. See you soon, ${nome}!`;
     mostrar(document.getElementById('modal-sucesso'));
   } catch (erro) {
-    caixaErro.textContent = 'Erro de conexão. Tente novamente.';
+    caixaErro.textContent = 'Connection error. Please try again.';
     mostrar(caixaErro);
   }
 });
 
-document.getElementById('semana-anterior').addEventListener('click', () => {
-  inicioSemana.setDate(inicioSemana.getDate() - 7);
-  carregarSemana();
-});
-document.getElementById('semana-proxima').addEventListener('click', () => {
-  inicioSemana.setDate(inicioSemana.getDate() + 7);
-  carregarSemana();
-});
-document.getElementById('barbeiro').addEventListener('change', (e) => {
-  barbeiroSelecionado = e.target.value;
-  carregarSemana();
-});
-
+montarSelectPais();
 carregarBarbeiros();

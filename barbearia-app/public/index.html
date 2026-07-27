@@ -1,66 +1,104 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reservar horário</title>
-<link rel="stylesheet" href="css/style.css">
+<title>Book an appointment</title>
+<link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
   <header class="topo">
-    <h1>IRON<span>BLADE</span></h1>
-    <p class="subtitulo">Escolha um horário e reserve o seu corte.</p>
+    <!--
+      LOGO: quando o Ironblade te mandar a logo, salve o arquivo de imagem em
+      public/img/logo.png e troque a linha abaixo por:
+      <img src="/img/logo.png" alt="Ironblade" class="logo-imagem">
+      (pode apagar o <h1> de texto ali embaixo se a logo já tiver o nome escrito)
+    -->
+    <div class="logo-espaco"></div>
+    <h1>IRONBLADE</h1>
+    <p class="subtitulo">Choose your barber, service and time.</p>
   </header>
 
-  <main class="conteudo">
-    <div class="controles">
-      <div class="campo">
-        <label for="barbeiro">Barbeiro</label>
-        <select id="barbeiro"></select>
-      </div>
-      <div class="navegacao-semana">
-        <button id="semana-anterior" class="botao-icone" aria-label="Semana anterior">‹</button>
-        <span id="rotulo-semana">Carregando...</span>
-        <button id="semana-proxima" class="botao-icone" aria-label="Próxima semana">›</button>
-      </div>
-    </div>
+  <!-- Step indicator -->
+  <div class="passos">
+    <span class="passo ativo" data-passo="1">1 · Barber</span>
+    <span class="passo" data-passo="2">2 · Service</span>
+    <span class="passo" data-passo="3">3 · Time</span>
+  </div>
 
-    <div id="grade-semana" class="grade-semana">
-      <!-- Preenchido via JavaScript -->
-    </div>
+  <main class="conteudo">
+
+    <!-- STEP 1: choose barber -->
+    <section id="etapa-barbeiro" class="etapa">
+      <h2 class="etapa-titulo">Select your barber</h2>
+      <div id="lista-barbeiros" class="grade-barbeiros"></div>
+    </section>
+
+    <!-- STEP 2: choose service -->
+    <section id="etapa-servico" class="etapa etapa-escondida">
+      <button class="botao-voltar" data-voltar="etapa-barbeiro">‹ Change barber</button>
+      <h2 class="etapa-titulo">Select a service</h2>
+      <div id="lista-servicos" class="grade-servicos"></div>
+    </section>
+
+    <!-- STEP 3: choose date and time -->
+    <section id="etapa-horario" class="etapa etapa-escondida">
+      <button class="botao-voltar" data-voltar="etapa-servico">‹ Change service</button>
+
+      <div class="cabecalho-horario">
+        <h2 class="etapa-titulo" style="margin:0;">Select date and time</h2>
+        <button id="botao-calendario" class="botao-calendario-icone" aria-label="Pick another date from the calendar">📅</button>
+        <input type="date" id="input-data-oculto" class="input-data-oculto">
+      </div>
+
+      <div class="navegador-semana">
+        <button id="semana-anterior" class="botao-icone" aria-label="Previous week">‹</button>
+        <div id="scroller-dias" class="scroller-dias"></div>
+        <button id="semana-proxima" class="botao-icone" aria-label="Next week">›</button>
+      </div>
+
+      <h3 class="rotulo-horarios">Pick a time</h3>
+      <div id="lista-horarios" class="lista-horarios"></div>
+    </section>
   </main>
 
-  <!-- Modal de confirmação de reserva -->
+  <!-- Booking confirmation modal -->
   <div id="modal" class="modal-fundo escondido">
     <div class="modal-caixa">
-      <button id="fechar-modal" class="botao-fechar" aria-label="Fechar">×</button>
-      <h2>Confirmar reserva</h2>
+      <button id="fechar-modal" class="botao-fechar" aria-label="Close">×</button>
+      <h2>Confirm your booking</h2>
       <p id="modal-horario-info" class="modal-info"></p>
 
       <form id="form-reserva">
-        <label for="nome">Name</label>
-        <input type="text" id="nome" required placeholder="">
+        <label for="nome">Full name</label>
+        <input type="text" id="nome" required placeholder="e.g. John Smith">
+
+        <label for="email">Email</label>
+        <input type="email" id="email" required placeholder="e.g. john@email.com">
 
         <label for="telefone">Phone number</label>
-        <input type="tel" id="telefone" required placeholder="">
+        <div class="grupo-telefone">
+          <select id="select-pais" class="select-pais"></select>
+          <input type="tel" id="telefone" required placeholder="Phone number" inputmode="numeric">
+        </div>
 
-        <button type="submit" class="botao-primario">Confirm</button>
+        <button type="submit" class="botao-primario">Confirm booking</button>
         <p id="mensagem-erro" class="mensagem-erro escondido"></p>
       </form>
     </div>
   </div>
 
-  <!-- Tela de sucesso -->
+  <!-- Success screen -->
   <div id="modal-sucesso" class="modal-fundo escondido">
     <div class="modal-caixa modal-sucesso-caixa">
       <div class="icone-sucesso">✓</div>
-      <h2>Reserva confirmada!</h2>
+      <h2>Booking confirmed!</h2>
       <p id="sucesso-info" class="modal-info"></p>
-      <button id="fechar-sucesso" class="botao-primario">Fechar</button>
+      <button id="fechar-sucesso" class="botao-primario">Close</button>
     </div>
   </div>
 
-  <script src="js/app.js"></script>
+  <script src="/js/app.js"></script>
 </body>
 </html>

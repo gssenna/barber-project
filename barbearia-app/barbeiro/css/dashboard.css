@@ -1,3 +1,18 @@
+/* O painel do barbeiro mantém sempre esta paleta (dourado/carvão), mesmo que
+   as cores do site do cliente (public/css/style.css, importado antes deste
+   arquivo) mudem — essas variáveis redeclaradas aqui têm prioridade. */
+:root {
+  --cor-fundo: #17150f;
+  --cor-superficie: #211e16;
+  --cor-superficie-alta: #2a2619;
+  --cor-texto: #efe8d8;
+  --cor-texto-suave: #a89d84;
+  --cor-latao: #c6a15b;
+  --cor-latao-escuro: #8c703b;
+  --cor-vermelho: #9c342b;
+  --cor-verde-disponivel: #4c7a52;
+}
+
 .tela-login {
   min-height: 100vh;
   display: flex;
@@ -136,6 +151,13 @@
 }
 .fc-event { cursor: pointer; padding: 1px 3px; font-size: 0.78rem; }
 
+/* Mãozinha do mouse em qualquer horário clicável do calendário */
+.fc-timegrid-slot-lane,
+.fc-daygrid-day-frame,
+.fc-timegrid-col-frame {
+  cursor: pointer;
+}
+
 .fc-daygrid-event-dot { display: none; }
 
 /* Realce sutil do expediente (horário de funcionamento) */
@@ -176,3 +198,36 @@
 }
 
 .mensagem-ok { color: var(--cor-verde-disponivel); font-size: 0.85rem; margin-top: 0.75rem; }
+
+/* Faturamento */
+.lista-faturamento { display: flex; flex-direction: column; gap: 0.6rem; margin: 1rem 0; }
+.linha-faturamento {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--cor-superficie-alta);
+  font-size: 0.9rem;
+}
+.linha-faturamento-nome { color: var(--cor-texto); }
+.linha-faturamento-qtd { color: var(--cor-texto-suave); font-size: 0.78rem; margin-left: 0.4rem; }
+.linha-faturamento-valor { font-family: 'Oswald', sans-serif; color: var(--cor-latao); }
+.faturamento-total {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 0.75rem;
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  font-size: 1rem;
+}
+.faturamento-total strong { color: var(--cor-latao); font-size: 1.4rem; }
+
+/* Botão de bloquear o dia inteiro, no cabeçalho de cada coluna do calendário */
+.botao-bloquear-dia {
+  background: none;
+  border: none;
+  color: var(--cor-texto-suave);
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+  line-height: 1;
+}
+.botao-bloquear-dia:hover { color: var(--cor-vermelho); }

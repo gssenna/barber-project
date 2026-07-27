@@ -1,18 +1,28 @@
 # Sistema de Reservas — Barbearia
 
-Site de agendamento sem cadastro para clientes + painel com calendário completo
-(Ano/Mês/Semana/Dia) para o(s) barbeiro(s) gerenciar.
+Site de agendamento sem cadastro para clientes (com serviços, preços em euro e
+duração de cada corte) + painel com calendário completo pro(s) barbeiro(s).
 
-## Como funciona agora
-- Você define o **expediente** uma vez (dias de atendimento, horário de abertura/fechamento,
-  duração de cada corte). Os horários disponíveis são calculados automaticamente — não
-  precisa mais "gerar" horário por horário.
-- Cada sessão dura o tempo que você configurar (padrão: 1 hora).
-- No calendário do painel: clique e arraste num horário livre pra **bloquear** (folga) ou
-  **marcar um cliente na mão**; clique num evento existente pra **cancelar/desbloquear**;
-  **arraste** um evento pra outro horário pra movê-lo.
-- O cliente só vê e escolhe entre os horários que estão realmente livres — o que está
-  reservado ou bloqueado simplesmente não aparece como opção pra ele.
+## Como funciona
+- **Cliente**: escolhe o barbeiro → escolhe o serviço (com preço e duração) →
+  escolhe data e horário (só aparecem horários realmente livres) → confirma com
+  nome e telefone. Sem cadastro.
+- **Barbeiro**: calendário com visão Ano/Mês/Semana/Dia. Clique num horário livre
+  pra bloquear ou marcar um cliente na mão; clique num evento existente pra
+  removê-lo; arraste um evento pra outro horário pra movê-lo; clique no ícone 🚫
+  no topo de cada coluna (visão semana/dia) pra bloquear o dia inteiro de uma vez.
+- **Faturamento**: botão "Faturamento" no painel mostra quantos agendamentos de
+  cada serviço a semana atual teve, e o total em euros.
+
+## Serviços (editáveis em `utils/servicos.js`)
+| Serviço | Preço | Duração |
+|---|---|---|
+| Cabelo | €25 | 45 min |
+| Barba | €20 | 30 min |
+| Cabelo + Barba | €40 | 1h |
+| Sobrancelha | €15 | 30 min |
+
+Pra mudar preços/durações, edite o arquivo `utils/servicos.js` e reinicie o servidor.
 
 ## 1. Pré-requisitos
 - Node.js instalado
@@ -22,16 +32,14 @@ Site de agendamento sem cadastro para clientes + painel com calendário completo
 ```
 mysql -u root -p < db/schema.sql
 ```
-⚠️ Se você já tinha rodado a versão anterior deste projeto, este comando novo
-**apaga as tabelas antigas** (`horarios`, `reservas`) e cria o novo modelo
-(`agendamentos`, `configuracoes`). Reservas de teste antigas serão perdidas —
-tudo bem, pois é a estrutura nova.
+⚠️ Se você já tinha uma versão anterior rodando, isso recria as tabelas do zero
+(perde reservas de teste antigas).
 
 ## 3. Variáveis de ambiente
 ```
 cp .env.example .env
 ```
-Edite o `.env` com o usuário/senha do seu MySQL e um `JWT_SECRET` qualquer, grande e aleatório.
+Edite com o usuário/senha do seu MySQL e um `JWT_SECRET` qualquer.
 
 ## 4. Instalar e rodar
 ```
@@ -43,8 +51,6 @@ npm start
 ```
 npm run criar-barbeiro
 ```
-Isso já cria um expediente padrão (seg-sáb, 9h-19h, sessões de 1h) — o barbeiro
-pode mudar isso a qualquer momento clicando em **"Expediente"** dentro do painel.
 
 ## 6. Acessar
 - **Site do cliente:** http://localhost:3000
@@ -53,23 +59,25 @@ pode mudar isso a qualquer momento clicando em **"Expediente"** dentro do painel
 ## Estrutura do projeto
 ```
 barbearia-app/
-├── db/schema.sql             → estrutura do banco (agendamentos, configuracoes, barbeiros)
+├── db/schema.sql             → estrutura do banco
 ├── db/db.js                  → conexão com o MySQL
-├── utils/grade.js            → calcula os horários do dia a partir do expediente
+├── utils/servicos.js         → lista de serviços (preço/duração)
+├── utils/grade.js            → cálculo de horários disponíveis
+├── utils/lock.js             → trava pra evitar reservas conflitantes
 ├── middleware/auth.js        → protege as rotas do barbeiro
 ├── routes/auth.js            → login do barbeiro
-├── routes/horarios.js        → rotas públicas (barbeiros e disponibilidade)
+├── routes/horarios.js        → rotas públicas (barbeiros, serviços, disponibilidade)
 ├── routes/reservas.js        → rota pública (cliente reservar)
-├── routes/barbeiro.js        → rotas protegidas (expediente + calendário)
+├── routes/barbeiro.js        → rotas protegidas (expediente, calendário, faturamento)
 ├── scripts/criar-barbeiro.js → cria um barbeiro + expediente padrão
 ├── server.js                 → arquivo principal
-├── public/                   → site do cliente
+├── public/                   → site do cliente (fluxo em 3 passos)
 └── barbeiro/                 → painel do barbeiro (calendário com FullCalendar)
 ```
 
-O painel usa a biblioteca gratuita **FullCalendar** (carregada via internet, direto
-no HTML) — por isso o computador que abrir o painel precisa estar conectado à internet.
+O painel usa a biblioteca gratuita **FullCalendar**, carregada via internet —
+por isso o computador que abrir o painel precisa estar conectado.
 
 ## Colocando no ar (deploy)
 Railway ou Render são bons pontos de partida — hospedam Node.js + MySQL juntos e
-têm plano gratuito/barato. Me chama quando quiser fazer isso, te guio passo a passo.
+têm plano gratuito/barato. Me chama quando quiser fazer isso.

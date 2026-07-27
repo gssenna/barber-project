@@ -22,16 +22,17 @@ async function main() {
       [nome, email, senha_hash]
     );
 
-    // Cria um expediente padrão: segunda a sábado, 9h às 19h, sessões de 1h.
-    // O barbeiro pode mudar isso depois no painel.
+    // Cria um expediente padrão: segunda a sábado, 9h às 19h. A "duração" aqui
+    // é só o tamanho padrão de um bloqueio manual — os serviços têm sua própria
+    // duração (definida em utils/servicos.js), então isso não afeta o cliente.
     await db.query(
       `INSERT INTO configuracoes (barbeiro_id, dias_semana, hora_abertura, hora_fechamento, duracao_minutos)
-       VALUES (?, '1,2,3,4,5,6', '09:00:00', '19:00:00', 60)`,
+       VALUES (?, '1,2,3,4,5,6', '09:00:00', '19:00:00', 30)`,
       [resultado.insertId]
     );
 
     console.log(`Barbeiro "${nome}" criado com sucesso! Já pode fazer login no painel.`);
-    console.log('Expediente padrão: seg-sáb, 9h-19h, sessões de 1h (pode alterar no painel depois).');
+    console.log('Expediente padrão: seg-sáb, 9h-19h (pode alterar no painel depois, em "Expediente").');
   } catch (erro) {
     console.error('Erro ao criar barbeiro:', erro.message);
   } finally {
